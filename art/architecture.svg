@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 450" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#191919"/>
+      <stop offset="100%" stop-color="#222222"/>
+    </linearGradient>
+    <linearGradient id="tealGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#009688"/>
+      <stop offset="100%" stop-color="#00BFA5"/>
+    </linearGradient>
+    <linearGradient id="cardGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#262626"/>
+      <stop offset="100%" stop-color="#1F1F1F"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="450" rx="12" fill="url(#bgGrad)" stroke="#333333" stroke-width="2"/>
+
+  <!-- Title Header -->
+  <text x="450" y="42" font-family="'Segoe UI', Roboto, Helvetica, sans-serif" font-size="20" font-weight="bold" fill="#FFFFFF" text-anchor="middle" letter-spacing="2">LINKSHARE SYSTEM ARCHITECTURE</text>
+  <line x1="200" y1="56" x2="700" y2="56" stroke="url(#tealGrad)" stroke-width="2"/>
+
+  <!-- Layer 1: Clients & Interfaces -->
+  <g filter="url(#shadow)">
+    <rect x="50" y="80" width="800" height="90" rx="8" fill="url(#cardGrad)" stroke="#009688" stroke-width="1.5"/>
+    <text x="70" y="105" font-family="'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="bold" fill="#00BFA5" letter-spacing="1">MULTIPLATFORM CLIENTS &amp; UI INTERFACES</text>
+    
+    <!-- Client Boxes -->
+    <rect x="70" y="118" width="130" height="40" rx="4" fill="#2D2D2D" stroke="#444"/>
+    <text x="135" y="142" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#FFF" text-anchor="middle">Android App</text>
+
+    <rect x="220" y="118" width="140" height="40" rx="4" fill="#2D2D2D" stroke="#444"/>
+    <text x="290" y="142" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#FFF" text-anchor="middle">Windows Explorer</text>
+
+    <rect x="380" y="118" width="130" height="40" rx="4" fill="#2D2D2D" stroke="#444"/>
+    <text x="445" y="142" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#FFF" text-anchor="middle">macOS Finder</text>
+
+    <rect x="530" y="118" width="130" height="40" rx="4" fill="#2D2D2D" stroke="#444"/>
+    <text x="595" y="142" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#FFF" text-anchor="middle">Web Browser</text>
+
+    <rect x="680" y="118" width="150" height="40" rx="4" fill="#2D2D2D" stroke="#444"/>
+    <text x="755" y="142" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#FFF" text-anchor="middle">Linux Headless CLI</text>
+  </g>
+
+  <!-- Connectors -->
+  <line x1="450" y1="170" x2="450" y2="200" stroke="#009688" stroke-width="2" stroke-dasharray="4,4"/>
+
+  <!-- Layer 2: Core Server Engines & Protocol Gateways -->
+  <g filter="url(#shadow)">
+    <rect x="50" y="200" width="800" height="110" rx="8" fill="url(#cardGrad)" stroke="#009688" stroke-width="1.5"/>
+    <text x="70" y="225" font-family="'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="bold" fill="#00BFA5" letter-spacing="1">CORE SERVER ENGINES &amp; PROTOCOL GATEWAYS</text>
+
+    <!-- Core Engine Cards -->
+    <rect x="70" y="238" width="170" height="55" rx="4" fill="#2A2A2A" stroke="#3D3D3D"/>
+    <text x="155" y="260" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="bold" fill="#00E676" text-anchor="middle">EmbeddedHttpServer</text>
+    <text x="155" y="278" font-family="'Segoe UI', sans-serif" font-size="10" fill="#AAA" text-anchor="middle">WebDAV • Stream • REST</text>
+
+    <rect x="260" y="238" width="170" height="55" rx="4" fill="#2A2A2A" stroke="#3D3D3D"/>
+    <text x="345" y="260" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="bold" fill="#FFB74D" text-anchor="middle">EmbeddedFtpServer</text>
+    <text x="345" y="278" font-family="'Segoe UI', sans-serif" font-size="10" fill="#AAA" text-anchor="middle">Full Root Storage • MTP</text>
+
+    <rect x="450" y="238" width="180" height="55" rx="4" fill="#2A2A2A" stroke="#3D3D3D"/>
+    <text x="540" y="260" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="bold" fill="#29B6F6" text-anchor="middle">WifiP2pManager</text>
+    <text x="540" y="278" font-family="'Segoe UI', sans-serif" font-size="10" fill="#AAA" text-anchor="middle">Wi-Fi Direct • Dual-Link F2</text>
+
+    <rect x="650" y="238" width="180" height="55" rx="4" fill="#2A2A2A" stroke="#3D3D3D"/>
+    <text x="740" y="260" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="bold" fill="#AB47BC" text-anchor="middle">SwarmEngine (F3)</text>
+    <text x="740" y="278" font-family="'Segoe UI', sans-serif" font-size="10" fill="#AAA" text-anchor="middle">Multi-Peer P2P Distribution</text>
+  </g>
+
+  <!-- Connectors -->
+  <line x1="450" y1="310" x2="450" y2="340" stroke="#009688" stroke-width="2" stroke-dasharray="4,4"/>
+
+  <!-- Layer 3: Subsystems & Security -->
+  <g filter="url(#shadow)">
+    <rect x="50" y="340" width="800" height="85" rx="8" fill="url(#cardGrad)" stroke="#009688" stroke-width="1.5"/>
+    <text x="70" y="362" font-family="'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="bold" fill="#00BFA5" letter-spacing="1">SUBSYSTEMS, SECURITY &amp; LOGGING</text>
+
+    <rect x="70" y="372" width="170" height="42" rx="4" fill="#252525" stroke="#333"/>
+    <text x="155" y="397" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#FFF" text-anchor="middle">AppSharingManager</text>
+
+    <rect x="260" y="372" width="170" height="42" rx="4" fill="#252525" stroke="#333"/>
+    <text x="345" y="397" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#FFF" text-anchor="middle">ClipboardSyncManager</text>
+
+    <rect x="450" y="372" width="180" height="42" rx="4" fill="#252525" stroke="#333"/>
+    <text x="540" y="397" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#FFF" text-anchor="middle">AuditLogger (JSON)</text>
+
+    <rect x="650" y="372" width="180" height="42" rx="4" fill="#252525" stroke="#333"/>
+    <text x="740" y="397" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#FFF" text-anchor="middle">HardwareCapDetector</text>
+  </g>
+</svg>

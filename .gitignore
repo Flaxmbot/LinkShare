@@ -1,0 +1,32 @@
+# Gradle build outputs & caches
+.gradle/
+build/
+app/build/
+**/build/
+*.apk
+*.ap_
+*.dex
+*.class
+
+# Android Studio & IDE Caches
+.idea/
+*.iml
+.navigation/
+captures/
+.externalNativeBuild
+.cxx/
+local.properties
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Keystores & Private Secrets (Local Only - Never Commit)
+keystore/
+*.jks
+*.keystore
+*.pepk
+google-services.json
+keystore_credentials.txt
