@@ -46,6 +46,7 @@ fun App(
     onCopyAddress: (String) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
+    var currentMountedDir by remember(currentDirectory) { mutableStateOf(currentDirectory.ifBlank { "/storage/emulated/0" }) }
 
     LinkShareTheme {
         var selectedTab by remember { mutableStateOf(NavTab.Server) }
@@ -95,7 +96,7 @@ fun App(
                             color = NougatTextSecondary
                         )
                         Text(
-                            text = "Destination: $currentDirectory",
+                            text = "Destination: $currentMountedDir",
                             fontSize = 11.sp,
                             color = NougatTealLight
                         )
@@ -183,7 +184,8 @@ fun App(
                             httpServer = httpServer,
                             ftpServer = ftpServer,
                             onDirectoryPick = onDirectoryPick,
-                            currentDirectory = currentDirectory,
+                            onSetMountedDirectory = { newDir -> currentMountedDir = newDir },
+                            currentDirectory = currentMountedDir,
                             onCopyAddress = onCopyAddress
                         )
                         NavTab.Discovery -> DiscoveryScreen(

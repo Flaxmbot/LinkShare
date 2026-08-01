@@ -1,9 +1,6 @@
 package app.linkshare.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,14 +32,14 @@ fun LocalServerScreen(
     httpServer: PlatformHttpServer,
     ftpServer: PlatformFtpServer,
     onDirectoryPick: () -> Unit,
+    onSetMountedDirectory: (String) -> Unit,
     currentDirectory: String,
     onCopyAddress: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val ipAddresses = remember { PlatformNetwork.getAllActiveIpAddresses() }
     val primaryIp = remember { PlatformNetwork.getLocalIpAddress() }
-    var isHttpRunning by remember { mutableStateOf(httpServer.isServerActive()) }
-    var isFtpRunning by remember { mutableStateOf(ftpServer.isServerActive()) }
+    var isRunning by remember { mutableStateOf(httpServer.isServerActive() || ftpServer.isServerActive()) }
 
     // Pulsing active indicator animation
     val infiniteTransition = rememberInfiniteTransition()
@@ -58,7 +55,7 @@ fun LocalServerScreen(
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        // ---------- MOUNT DIRECTORY SELECTION CARD ----------
+        // ---------- SINGLE MASTER SERVER CONTROL CARD ----------
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = NougatSurface),
@@ -66,72 +63,6 @@ fun LocalServerScreen(
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Folder,
-                        contentDescription = null,
-                        tint = NougatAmber,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "MOUNTED DIRECTORY",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        letterSpacing = 1.sp,
-                        color = NougatTextSecondary
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(NougatBackground, RoundedCornerShape(4.dp))
-                        .border(0.5.dp, NougatCardBorder, RoundedCornerShape(4.dp))
-                        .clickable { onDirectoryPick() }
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FolderOpen,
-                        contentDescription = null,
-                        tint = NougatTeal,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = currentDirectory.ifBlank { "Tap to choose shared directory..." },
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 12.sp,
-                        color = if (currentDirectory.isBlank()) NougatTextMuted else NougatTealLight,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "CHANGE",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        color = NougatTeal
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // ---------- SERVER CONTROL CARD ----------
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = NougatSurface),
-            shape = RoundedCornerShape(4.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // Header & status badge
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -140,30 +71,35 @@ fun LocalServerScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
+                                .size(12.dp)
                                 .clip(CircleShape)
-                                .background(
-                                    if (isHttpRunning) NougatGreen.copy(alpha = pulseAlpha) else NougatRed
-                                )
+                                .background(if (isRunning) NougatGreen.copy(alpha = pulseAlpha) else NougatRed)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (isHttpRunning) "HTTP SERVER ACTIVE" else "HTTP SERVER STOPPED",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = Color.White
-                        )
+                        Column {
+                            Text(
+                                text = if (isRunning) "SERVER DAEMON ONLINE" else "SERVER DAEMON STOPPED",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+                            Text(
+                                text = if (isRunning) "HTTP (Port 8888) · FTP (Port 2121) · WebDAV" else "Tap below to start HTTP, FTP & WebDAV",
+                                fontSize = 11.sp,
+                                color = if (isRunning) NougatTealLight else NougatTextMuted
+                            )
+                        }
                     }
 
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (isHttpRunning) NougatGreen.copy(alpha = 0.15f) else NougatRed.copy(alpha = 0.15f)
+                        color = if (isRunning) NougatGreen.copy(alpha = 0.15f) else NougatRed.copy(alpha = 0.15f)
                     ) {
                         Text(
-                            text = if (isHttpRunning) "ONLINE" else "OFFLINE",
+                            text = if (isRunning) "ACTIVE" else "STOPPED",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isHttpRunning) NougatGreen else NougatRed,
+                            color = if (isRunning) NougatGreen else NougatRed,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -171,71 +107,36 @@ fun LocalServerScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // PIN Display
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(NougatBackground, RoundedCornerShape(4.dp))
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(text = "ACCESS PIN", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NougatTextMuted)
-                        Text(
-                            text = httpServer.sessionPin,
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = NougatAmber,
-                            letterSpacing = 4.sp
-                        )
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = NougatSurfaceLight
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(imageVector = Icons.Default.Security, contentDescription = null, tint = NougatTeal, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("PIN SECURED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NougatTealLight)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Start/Stop Button
+                // SINGLE BUTTON TO START/STOP BOTH HTTP & FTP SERVERS
                 Button(
                     onClick = {
-                        if (isHttpRunning) {
+                        if (isRunning) {
                             httpServer.stopServer()
-                        } else if (currentDirectory.isNotBlank()) {
-                            httpServer.startServer(currentDirectory)
+                            ftpServer.stopServer()
+                        } else {
+                            val dir = currentDirectory.ifBlank { "/storage/emulated/0" }
+                            httpServer.startServer(dir)
+                            ftpServer.startServer(dir)
                         }
-                        isHttpRunning = httpServer.isServerActive()
+                        isRunning = httpServer.isServerActive() || ftpServer.isServerActive()
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isHttpRunning) NougatRed else NougatTeal
+                        containerColor = if (isRunning) NougatRed else NougatTeal
                     ),
                     shape = RoundedCornerShape(4.dp),
                     modifier = Modifier.fillMaxWidth().height(44.dp)
                 ) {
                     Icon(
-                        imageVector = if (isHttpRunning) Icons.Default.PowerSettingsNew else Icons.Default.Http,
+                        imageVector = if (isRunning) Icons.Default.PowerSettingsNew else Icons.Default.PlayArrow,
                         contentDescription = null,
                         tint = Color.White
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = if (isHttpRunning) "STOP HTTP SERVER" else "START HTTP SERVER",
+                        text = if (isRunning) "STOP ALL SERVERS" else "START SERVER DAEMON",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         letterSpacing = 0.5.sp
                     )
                 }
@@ -244,7 +145,17 @@ fun LocalServerScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ---------- FTP SERVER CONTROL CARD ----------
+        // ---------- MOUNTED DIRECTORY SELECTION CARD ----------
+        Text(
+            text = "SHARED STORAGE MOUNT",
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            letterSpacing = 1.sp,
+            color = NougatTextSecondary
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = NougatSurface),
@@ -252,75 +163,150 @@ fun LocalServerScreen(
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Mounted Folder:",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = NougatTextMuted
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(NougatBackground, RoundedCornerShape(4.dp))
+                        .border(0.5.dp, NougatCardBorder, RoundedCornerShape(4.dp))
+                        .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(if (isFtpRunning) NougatGreen.copy(alpha = pulseAlpha) else NougatRed)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "FTP SERVER (PORT 2121)",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = Color.White
-                        )
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = if (isFtpRunning) NougatGreen.copy(alpha = 0.15f) else NougatRed.copy(alpha = 0.15f)
-                    ) {
-                        Text(
-                            text = if (isFtpRunning) "ACTIVE" else "STOPPED",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isFtpRunning) NougatGreen else NougatRed,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.FolderSpecial,
+                        contentDescription = null,
+                        tint = NougatAmber,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = currentDirectory.ifBlank { "/storage/emulated/0" },
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = NougatTealLight,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                Button(
-                    onClick = {
-                        if (isFtpRunning) {
-                            ftpServer.stopServer()
-                        } else if (currentDirectory.isNotBlank()) {
-                            ftpServer.startServer(currentDirectory)
-                        }
-                        isFtpRunning = ftpServer.isServerActive()
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isFtpRunning) NougatRed else NougatSurfaceLight
-                    ),
-                    shape = RoundedCornerShape(4.dp),
-                    modifier = Modifier.fillMaxWidth().height(40.dp)
+                // 1-TAP QUICK PRESET BUTTONS FOR EASY MOUNTING (bypassing DocumentPicker restriction for /storage/emulated/0)
+                Text(
+                    text = "Quick Presets:",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = NougatTextMuted
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Storage, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = if (isFtpRunning) "STOP FTP SERVER" else "START FTP SERVER",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                    PresetChip(
+                        label = "⚡ Internal Storage",
+                        path = "/storage/emulated/0",
+                        currentDir = currentDirectory,
+                        onClick = { onSetMountedDirectory("/storage/emulated/0") },
+                        modifier = Modifier.weight(1f)
                     )
+                    PresetChip(
+                        label = "📁 Downloads",
+                        path = "/storage/emulated/0/Download",
+                        currentDir = currentDirectory,
+                        onClick = { onSetMountedDirectory("/storage/emulated/0/Download") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    PresetChip(
+                        label = "📷 DCIM / Photos",
+                        path = "/storage/emulated/0/DCIM",
+                        currentDir = currentDirectory,
+                        onClick = { onSetMountedDirectory("/storage/emulated/0/DCIM") },
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedButton(
+                        onClick = onDirectoryPick,
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier.weight(1f).height(32.dp),
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.FolderOpen, contentDescription = null, tint = NougatTeal, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Custom Folder...", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NougatTeal)
+                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ---------- NETWORK ADDRESSES CARD ----------
+        // ---------- PIN SECURITY CARD ----------
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = NougatSurface),
+            shape = RoundedCornerShape(4.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(text = "SESSION ACCESS PIN", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NougatTextMuted)
+                    Text(
+                        text = httpServer.sessionPin,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = NougatAmber,
+                        letterSpacing = 4.sp
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = NougatTeal.copy(alpha = 0.12f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(imageVector = Icons.Default.Security, contentDescription = null, tint = NougatTeal, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("PIN AUTH ACTIVE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NougatTealLight)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ---------- CLEAN NETWORK ADDRESSES CARD ----------
         Text(
-            text = "NETWORK ADDRESSES",
+            text = "NETWORK ADDRESSES & LINKS",
             fontWeight = FontWeight.Bold,
             fontSize = 12.sp,
             letterSpacing = 1.sp,
@@ -339,7 +325,7 @@ fun LocalServerScreen(
                 AddressRowItem(
                     icon = Icons.Default.Http,
                     iconTint = NougatTeal,
-                    label = "WEB PORTAL (HTTP)",
+                    label = "WEB PORTAL & EXPLORER",
                     uri = "http://$primaryIp:8888?pin=${httpServer.sessionPin}",
                     onCopy = onCopyAddress
                 )
@@ -347,7 +333,7 @@ fun LocalServerScreen(
                 AddressRowItem(
                     icon = Icons.Default.FolderOpen,
                     iconTint = NougatAmber,
-                    label = "WEBDAV NETWORK DRIVE",
+                    label = "WEBDAV NETWORK DRIVE MOUNT",
                     uri = "http://$primaryIp:8888/",
                     onCopy = onCopyAddress
                 )
@@ -355,7 +341,7 @@ fun LocalServerScreen(
                 AddressRowItem(
                     icon = Icons.Default.Storage,
                     iconTint = NougatGreen,
-                    label = "FTP STORAGE ACCESS",
+                    label = "FTP CLIENT STORAGE ACCESS",
                     uri = "ftp://$primaryIp:2121",
                     onCopy = onCopyAddress
                 )
@@ -364,9 +350,9 @@ fun LocalServerScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ---------- NETWORK INTERFACES LIST ----------
+        // ---------- ACTIVE NETWORK INTERFACES ----------
         Text(
-            text = "ACTIVE INTERFACES (${ipAddresses.size})",
+            text = "PRIMARY WI-FI LAN INTERFACE",
             fontWeight = FontWeight.Bold,
             fontSize = 12.sp,
             letterSpacing = 1.sp,
@@ -383,7 +369,7 @@ fun LocalServerScreen(
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 if (ipAddresses.isEmpty()) {
-                    Text("No active local network interfaces found", fontSize = 12.sp, color = NougatTextMuted)
+                    Text("No active local Wi-Fi interfaces detected", fontSize = 12.sp, color = NougatTextMuted)
                 } else {
                     ipAddresses.forEachIndexed { index, info ->
                         Row(
@@ -416,7 +402,7 @@ fun LocalServerScreen(
 }
 
 @Composable
-fun AddressRowItem(
+private fun AddressRowItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     iconTint: Color,
     label: String,
@@ -456,6 +442,38 @@ fun AddressRowItem(
             ) {
                 Icon(imageVector = Icons.Default.ContentCopy, contentDescription = "Copy", tint = NougatTeal, modifier = Modifier.size(16.dp))
             }
+        }
+    }
+}
+
+@Composable
+private fun PresetChip(
+    label: String,
+    path: String,
+    currentDir: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val isSelected = currentDir.trimEnd('/') == path.trimEnd('/')
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(4.dp),
+        color = if (isSelected) NougatTeal.copy(alpha = 0.2f) else NougatBackground,
+        border = androidx.compose.foundation.BorderStroke(
+            0.5.dp,
+            if (isSelected) NougatTeal else NougatCardBorder
+        ),
+        modifier = modifier.height(32.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                color = if (isSelected) NougatTeal else NougatTextSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
