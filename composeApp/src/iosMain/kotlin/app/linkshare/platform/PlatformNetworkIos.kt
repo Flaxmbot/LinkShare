@@ -12,12 +12,6 @@ import platform.posix.sockaddr_in
 import platform.posix.inet_ntoa
 
 actual object PlatformNetwork {
-    actual data class IpInfo(
-        actual val label: String,
-        actual val ip: String,
-        actual val interfaceName: String
-    )
-
     actual fun getAllActiveIpAddresses(): List<IpInfo> {
         val result = mutableListOf<IpInfo>()
         memScoped {

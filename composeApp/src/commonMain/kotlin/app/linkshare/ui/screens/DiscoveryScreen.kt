@@ -94,7 +94,7 @@ fun DiscoveryScreen(
                 enabled = !isSearching
             ) {
                 Icon(
-                    if (isSearching) Icons.Default.HourglassTop else Icons.Default.RadarOutlined,
+                    if (isSearching) Icons.Default.HourglassTop else Icons.Default.Radar,
                     "Scan", modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(8.dp))

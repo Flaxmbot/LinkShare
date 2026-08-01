@@ -4,12 +4,6 @@ import java.net.Inet4Address
 import java.net.NetworkInterface
 
 actual object PlatformNetwork {
-    actual data class IpInfo(
-        actual val label: String,
-        actual val ip: String,
-        actual val interfaceName: String
-    )
-
     actual fun getAllActiveIpAddresses(): List<IpInfo> {
         val result = mutableListOf<IpInfo>()
         try {

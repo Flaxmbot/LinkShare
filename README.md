@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="art/app_icon.png" width="120" height="120" alt="LinkShare" />
+<img src="art/app_icon.svg" width="120" height="120" alt="LinkShare" />
 
 # LinkShare
 

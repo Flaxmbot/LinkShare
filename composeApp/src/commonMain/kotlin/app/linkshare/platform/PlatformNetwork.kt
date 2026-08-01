@@ -1,15 +1,15 @@
 package app.linkshare.platform
 
+data class IpInfo(
+    val label: String,
+    val ip: String,
+    val interfaceName: String
+)
+
 /**
  * Platform-specific network utilities.
  */
 expect object PlatformNetwork {
-    data class IpInfo(
-        val label: String,
-        val ip: String,
-        val interfaceName: String
-    )
-
     /** Returns all active, non-loopback IPv4 addresses categorized by interface type */
     fun getAllActiveIpAddresses(): List<IpInfo>
 

@@ -31,6 +31,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
+      - uses: wixtoolset/setup-wix-action@v1
       - uses: gradle/actions/setup-gradle@v3
       - run: .\gradlew.bat :composeApp:packageMsi --no-daemon
       - uses: actions/upload-artifact@v4
@@ -78,7 +79,7 @@ jobs:
         with: { path: artifacts }
 
       - name: List artifacts
-        run: find artifacts -type f | head -20
+        run: find artifacts -type f
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -87,7 +88,7 @@ jobs:
           body: |
             ## LinkShare ${{ github.ref_name }}
 
-            High-Performance LAN & Wi-Fi Direct P2P File Sharing
+            High-Performance Multiplatform LAN & Wi-Fi Direct File Sharing
 
             ### Downloads
             | Platform | File |
@@ -97,7 +98,7 @@ jobs:
             | macOS | `LinkShare-macos.dmg` |
             | Linux | `LinkShare-linux.deb` |
 
-            ### Features
+            ### Highlights
             - HTTP/FTP server with Windows 11 File Explorer web portal
             - WebDAV protocol gateway for native OS mounting
             - BitTorrent-style swarm file distribution
@@ -108,5 +109,6 @@ jobs:
             artifacts/**/*.msi
             artifacts/**/*.dmg
             artifacts/**/*.deb
+          fail_on_unmatched_files: false
           draft: false
           prerelease: false
