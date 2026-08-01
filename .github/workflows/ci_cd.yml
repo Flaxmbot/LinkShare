@@ -31,7 +31,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
-      - uses: wixtoolset/setup-wix-action@v1
+      - name: Add WiX to PATH
+        run: echo "C:\Program Files (x86)\WiX Toolset v3.11\bin" >> $env:GITHUB_PATH
+        shell: powershell
       - uses: gradle/actions/setup-gradle@v3
       - run: .\gradlew.bat :composeApp:packageMsi --no-daemon
       - uses: actions/upload-artifact@v4
