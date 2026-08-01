@@ -57,6 +57,10 @@ kotlin {
             }
         }
 
+        val commonJvmTest by creating {
+            dependsOn(commonTest)
+        }
+
         val androidMain by getting {
             dependsOn(commonJvmMain)
             dependencies {
@@ -78,6 +82,10 @@ kotlin {
             }
         }
 
+        val desktopTest by getting {
+            dependsOn(commonJvmTest)
+        }
+
         val iosArm64Main by getting
         val iosSimulatorArm64Main by getting
         val iosMain by creating {
@@ -97,7 +105,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 2
-        versionName = "1.2.0"
+        versionName = "1.0.0"
     }
 
     signingConfigs {
@@ -139,7 +147,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "LinkShare"
-            packageVersion = "1.2.0"
+            packageVersion = "1.0.0"
             description = "High-Performance LAN & Wi-Fi Direct P2P File Sharing"
             vendor = "LinkShare"
 

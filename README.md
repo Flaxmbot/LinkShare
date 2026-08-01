@@ -4,7 +4,7 @@ LinkShare is an offline-first file sharing app for local networks. It provides a
 
 ## Current release
 
-The current development release is `1.2.0` (`versionCode 2`). Release artifacts are produced by GitHub Actions for Android, Windows, macOS, and Linux when a `v*` tag is pushed.
+The current release baseline is `1.0.0` (`versionCode 3`). Release artifacts are produced by GitHub Actions for Android, Windows, macOS, and Linux when a `v*` tag is pushed.
 
 The repository also contains iOS source sets, but this repository does not currently publish a signed iOS application.
 
@@ -41,7 +41,7 @@ The repository also contains iOS source sets, but this repository does not curre
 | macOS | DMG | Built on a macOS GitHub Actions runner |
 | Linux | DEB | Built on an Ubuntu GitHub Actions runner |
 
-Do not install a debug APK over a release APK, or vice versa. Android requires the same signing certificate for an in-place update. Very old development builds may need to be uninstalled once before installing the stable-signed release; future releases use the same stable signing key and increasing version codes.
+Do not install a debug APK over a release APK, or vice versa. Android requires the same signing certificate for an in-place update. Very old development builds may need to be uninstalled once before installing the stable-signed release; future releases use the same stable signing key and increasing version codes. The semantic version may be reset for a distribution baseline, but Android `versionCode` must continue increasing.
 
 ## Build locally
 
