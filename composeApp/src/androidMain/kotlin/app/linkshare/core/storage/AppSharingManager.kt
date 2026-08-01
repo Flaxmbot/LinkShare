@@ -8,6 +8,9 @@ import app.linkshare.platform.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 
 /**
  * ShareME/ShareIT-Style Installed App Sharing & APK Extractor Engine.
@@ -20,15 +23,18 @@ class AppSharingManager(private val context: Context) {
     data class InstalledAppInfo(
         val appName: String,
         val packageName: String,
-        val apkFile: File,
+        val apkFiles: List<File>,
         val sizeBytes: Long,
-        val isSystemApp: Boolean
+        val isSystemApp: Boolean,
+        val versionName: String,
+        val versionCode: Long,
+        val isAvailable: Boolean
     )
 
     /**
      * Get list of all shareable installed applications
      */
-    suspend fun getInstalledApps(includeSystemApps: Boolean = false): List<InstalledAppInfo> = withContext(Dispatchers.IO) {
+    suspend fun getInstalledApps(includeSystemApps: Boolean = true): List<InstalledAppInfo> = withContext(Dispatchers.IO) {
         val pm = context.packageManager
         val packages = pm.getInstalledPackages(PackageManager.GET_META_DATA)
         val appList = mutableListOf<InstalledAppInfo>()
@@ -38,9 +44,11 @@ class AppSharingManager(private val context: Context) {
             val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
             if (!includeSystemApps && isSystem) continue
 
-            val apkPath = appInfo.sourceDir ?: continue
-            val apkFile = File(apkPath)
-            if (!apkFile.exists() || !apkFile.canRead()) continue
+            val apkFiles = buildList {
+                appInfo.sourceDir?.let { add(File(it)) }
+                appInfo.splitSourceDirs?.forEach { add(File(it)) }
+            }
+            val availableFiles = apkFiles.filter { it.exists() && it.canRead() }
 
             val label = try {
                 pm.getApplicationLabel(appInfo).toString()
@@ -52,9 +60,12 @@ class AppSharingManager(private val context: Context) {
                 InstalledAppInfo(
                     appName = label,
                     packageName = pkg.packageName,
-                    apkFile = apkFile,
-                    sizeBytes = apkFile.length(),
-                    isSystemApp = isSystem
+                    apkFiles = availableFiles,
+                    sizeBytes = availableFiles.sumOf { it.length() },
+                    isSystemApp = isSystem,
+                    versionName = pkg.versionName.orEmpty(),
+                    versionCode = if (android.os.Build.VERSION.SDK_INT >= 28) pkg.longVersionCode else pkg.versionCode.toLong(),
+                    isAvailable = availableFiles.isNotEmpty()
                 )
             )
         }
@@ -73,18 +84,26 @@ class AppSharingManager(private val context: Context) {
             }
             if (!targetDir.exists()) targetDir.mkdirs()
 
-            val safeName = app.appName.replace(Regex("[^a-zA-Z0-9._-]"), "_") + ".apk"
+            if (!app.isAvailable) return@withContext null
+            val safeName = app.appName.replace(Regex("[^a-zA-Z0-9._-]"), "_") + ".apks"
             val targetFile = File(targetDir, safeName)
-
-            if (!targetFile.exists() || targetFile.length() != app.apkFile.length()) {
-                app.apkFile.copyTo(targetFile, overwrite = true)
+            ZipOutputStream(FileOutputStream(targetFile)).use { zip ->
+                app.apkFiles.forEachIndexed { index, source ->
+                    val entryName = if (index == 0) "base.apk" else "split-$index.apk"
+                    zip.putNextEntry(ZipEntry(entryName))
+                    source.inputStream().use { it.copyTo(zip) }
+                    zip.closeEntry()
+                }
+                zip.putNextEntry(ZipEntry("metadata.txt"))
+                zip.write("package=${app.packageName}\nversion=${app.versionName}\nversionCode=${app.versionCode}\n".toByteArray())
+                zip.closeEntry()
             }
 
             Log.d(TAG, "Extracted APK for ${app.appName} to ${targetFile.absolutePath}")
             FileItem(
                 name = targetFile.name,
                 path = targetFile.absolutePath,
-                sizeBytes = targetFile.length(),
+                sizeBytes = app.apkFiles.sumOf { it.length() },
                 lastModified = targetFile.lastModified(),
                 isDirectory = false
             )

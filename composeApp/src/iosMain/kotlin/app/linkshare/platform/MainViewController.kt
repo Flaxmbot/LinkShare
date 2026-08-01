@@ -14,6 +14,7 @@ fun MainViewController() = ComposeUIViewController {
         ftpServer = ftpServer,
         fileSystem = fileSystem,
         onDirectoryPick = { /* iOS document picker integration */ },
-        currentDirectory = currentDirectory
+        currentDirectory = currentDirectory,
+        appsEnabled = false
     )
 }

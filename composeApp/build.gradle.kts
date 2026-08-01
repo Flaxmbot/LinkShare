@@ -104,8 +104,8 @@ android {
         applicationId = "app.linkshare"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.1.0"
     }
 
     signingConfigs {
@@ -147,7 +147,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "LinkShare"
-            packageVersion = "1.0.0"
+            packageVersion = "1.1.0"
             description = "High-Performance LAN & Wi-Fi Direct P2P File Sharing"
             vendor = "LinkShare"
 

@@ -13,7 +13,9 @@ data class PeerDevice(
     val supportsF3Swarm: Boolean = true,
     val ftpServerActive: Boolean = false,
     val lastSeenTimestamp: Long = currentTimeMillis(),
-    val signalDbm: Int = -60
+    val signalDbm: Int = -60,
+    val accessPin: String? = null,
+    val accessToken: String? = null
 )
 
 internal expect fun currentTimeMillis(): Long

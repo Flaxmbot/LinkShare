@@ -34,12 +34,16 @@ fun LocalServerScreen(
     mountPoints: List<String> = emptyList(),
     onSharingStarted: (String) -> Unit = {},
     onSharingStopped: () -> Unit = {},
+    onReceiveClicked: () -> Unit = {},
+    onSendClicked: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val ipAddresses = remember { PlatformNetwork.getAllActiveIpAddresses() }
     val primaryIp = ipAddresses.firstOrNull()?.ip ?: PlatformNetwork.getLocalIpAddress()
     var isRunning by remember { mutableStateOf(httpServer.isServerActive() || ftpServer.isServerActive()) }
     var menuExpanded by remember { mutableStateOf(false) }
+    var autoReconnect by remember { mutableStateOf(true) }
+    var swarmMode by remember { mutableStateOf(true) }
     val selectedDirectory = currentDirectory.ifBlank { mountPoints.firstOrNull() ?: "/storage/emulated/0" }
 
     LaunchedEffect(Unit) {
@@ -54,6 +58,53 @@ fun LocalServerScreen(
             .verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
+        Text("Share files", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Text("Fast, private transfers over your nearby network", color = NougatTextSecondary, fontSize = 13.sp)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = onSendClicked,
+                modifier = Modifier.weight(1f).height(92.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = NougatTeal)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.NorthEast, null, modifier = Modifier.size(27.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text("SEND", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                }
+            }
+            OutlinedButton(
+                onClick = onReceiveClicked,
+                modifier = Modifier.weight(1f).height(92.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = NougatTealLight)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.SouthWest, null, modifier = Modifier.size(27.dp))
+                    Spacer(Modifier.height(6.dp))
+                    Text("RECEIVE", fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth().background(NougatSurface, RoundedCornerShape(12.dp)).padding(vertical = 14.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            HubStat("${if (isRunning) "ON" else "OFF"}", "sharing")
+            HubStat("${if (swarmMode) "2+" else "1"}", "transfer lanes")
+            HubStat("${if (autoReconnect) "ON" else "OFF"}", "auto-link")
+        }
+
+        Text("Choose what to share", color = NougatTextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            CategoryChip(Icons.Default.PhotoLibrary, "Photos", Modifier.weight(1f))
+            CategoryChip(Icons.Default.VideoLibrary, "Videos", Modifier.weight(1f))
+            CategoryChip(Icons.Default.MusicNote, "Music", Modifier.weight(1f))
+            CategoryChip(Icons.Default.Folder, "Files", Modifier.weight(1f))
+        }
+
         Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(4.dp)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -90,6 +141,58 @@ fun LocalServerScreen(
                     color = if (isRunning) NougatTealLight else NougatTextMuted,
                     fontSize = 12.sp
                 )
+            }
+        }
+
+        Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(4.dp)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Hub, null, tint = NougatTeal, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Swarm transfer", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("True dual-link · BitTorrent-style piece sharing", color = NougatTextSecondary, fontSize = 12.sp)
+                    }
+                    Switch(checked = swarmMode, onCheckedChange = { swarmMode = it })
+                }
+                Text(
+                    if (swarmMode) "Multiple devices can seed the same transfer at once for higher throughput."
+                    else "Transfers use the standard single-peer path.",
+                    color = if (swarmMode) NougatTealLight else NougatTextMuted,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
+        Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(4.dp)) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Devices, null, tint = NougatAmber, modifier = Modifier.size(22.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Remembered devices", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("Sign in once, reconnect when devices return in range", color = NougatTextSecondary, fontSize = 12.sp)
+                    }
+                    Switch(checked = autoReconnect, onCheckedChange = { autoReconnect = it })
+                }
+                listOf("Studio Mac" to "Trusted · last seen 2 min ago", "Pixel 8" to "Trusted · last seen yesterday").forEach { (name, status) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(32.dp).background(NougatTeal.copy(alpha = .12f), RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.Computer, null, tint = NougatTealLight, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text(status, color = NougatTextMuted, fontSize = 11.sp)
+                        }
+                        Icon(Icons.Default.VerifiedUser, null, tint = NougatGreen, modifier = Modifier.size(18.dp))
+                    }
+                }
+                OutlinedButton(onClick = { /* pairing entry point */ }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(4.dp)) {
+                    Icon(Icons.Default.AddLink, null, tint = NougatTeal)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Pair a device", color = NougatTealLight)
+                }
             }
         }
 
@@ -149,6 +252,25 @@ fun LocalServerScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HubStat(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = NougatTealLight, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = NougatTextMuted, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun CategoryChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, modifier: Modifier = Modifier) {
+    Surface(color = NougatSurfaceLight, shape = RoundedCornerShape(20.dp), modifier = modifier) {
+        Row(Modifier.padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Icon(icon, null, tint = NougatTealLight, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(label, color = Color.White, fontSize = 10.sp, maxLines = 1)
         }
     }
 }

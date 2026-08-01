@@ -108,8 +108,22 @@ class MainActivity : ComponentActivity() {
                         setOrientationLocked(false)
                     })
                 },
+                onPairingToken = { deviceId, token ->
+                    getPreferences(MODE_PRIVATE).edit().putString("trusted_device_$deviceId", token).apply()
+                },
                 onLoadApps = {
-                    appSharingManager.getInstalledApps().map { SharedAppInfo(it.appName, it.packageName, it.sizeBytes, it.isSystemApp) }
+                    appSharingManager.getInstalledApps(includeSystemApps = true).map {
+                        SharedAppInfo(
+                            appName = it.appName,
+                            packageName = it.packageName,
+                            sizeBytes = it.sizeBytes,
+                            isSystemApp = it.isSystemApp,
+                            versionName = it.versionName,
+                            versionCode = it.versionCode,
+                            apkCount = it.apkFiles.size,
+                            isAvailable = it.isAvailable
+                        )
+                    }
                 },
                 onPrepareApp = { app ->
                     val installed = appSharingManager.getInstalledApps().firstOrNull { it.packageName == app.packageName }

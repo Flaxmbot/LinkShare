@@ -45,7 +45,8 @@ fun main() = application {
                     currentDirectory = chooser.selectedFile.absolutePath
                 }
             },
-            currentDirectory = currentDirectory
+            currentDirectory = currentDirectory,
+            appsEnabled = false
         )
     }
 }

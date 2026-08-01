@@ -14,6 +14,7 @@ import java.io.InputStream
 import java.io.InputStreamReader
 import java.io.OutputStream
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.io.DataInputStream
@@ -24,8 +25,18 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.Base64
+import java.util.Properties
 import kotlin.random.Random
 import app.linkshare.core.swarm.SwarmManifestBuilder
+import app.linkshare.core.swarm.PieceVerifier
+import app.linkshare.core.client.RemoteDeviceClient
+import app.linkshare.model.SwarmManifest
+import java.util.BitSet
+import java.security.MessageDigest
+import app.linkshare.model.DevicePermission
+import app.linkshare.model.TrustedDevice
+import app.linkshare.model.SyncDirection
+import app.linkshare.model.SyncJob
 
 actual class PlatformHttpServer actual constructor(private val port: Int) {
     actual var deviceName: String = "LinkShare-Device"
@@ -39,6 +50,14 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
     actual var enterpriseToken: String = "token_${generatePin()}${generatePin()}"
         private set
     actual var activeClipboardText: String = ""
+    private val trustedDevices = linkedMapOf<String, TrustedDevice>()
+    private val trustedTokens = linkedMapOf<String, String>()
+    private val peerTokens = linkedMapOf<String, String>()
+    private val syncFingerprints = linkedMapOf<String, String>()
+    private val syncJobs = linkedMapOf<String, SyncJob>()
+    private data class IncomingSwarmTransfer(val target: File, val manifest: SwarmManifest, val received: BitSet)
+    private val incomingSwarmTransfers = linkedMapOf<String, IncomingSwarmTransfer>()
+    private var trustedStoreFile: File? = null
 
     private var sharedDirectory: File? = null
     private var lastActivityTime: Long = System.currentTimeMillis()
@@ -50,6 +69,8 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
         val dir = File(shareDir)
         sharedDirectory = dir
         if (!dir.exists()) dir.mkdirs()
+        trustedStoreFile = File(dir, ".linkshare/trusted.properties")
+        loadTrustedDevices()
         sessionPin = customPin ?: generatePin()
         idleTimeoutMs = if (timeoutMinutes <= 0) Long.MAX_VALUE else timeoutMinutes * 60 * 1000L
         maxSpeedLimitBps = if (maxSpeedMbps <= 0) 0L else (maxSpeedMbps.toLong() * 1024 * 1024 / 8)
@@ -80,6 +101,7 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
             }
         }
         scope.launch { runDualLinkServer(dir) }
+        scope.launch { runHomeSyncLoop() }
     }
 
     actual fun stopServer() {
@@ -187,7 +209,9 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
             }
 
             val submittedPin = extractParam(rawPath, "pin")
-            val isBearerValid = authHeader?.startsWith("Bearer ") == true && authHeader.substring(7).trim() == enterpriseToken
+            val bearerToken = if (authHeader?.startsWith("Bearer ") == true) authHeader.substring(7).trim() else null
+            val trustedDeviceId = bearerToken?.let { token -> trustedTokens.entries.firstOrNull { it.value == token }?.key }
+            val isBearerValid = bearerToken == enterpriseToken || trustedDeviceId != null
             val isBasicValid = authHeader?.startsWith("Basic ") == true && try {
                 val decoded = String(Base64.getDecoder().decode(authHeader.substring(6).trim()), Charsets.UTF_8)
                 decoded.substringAfter(':', "") == sessionPin
@@ -205,6 +229,23 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
                 socket.close(); return@withContext
             }
 
+            if (trustedDeviceId != null) {
+                val trusted = trustedDevices[trustedDeviceId]
+                val isWrite = method in setOf("PUT", "POST", "DELETE", "MKCOL")
+                val isAdmin = cleanPath.startsWith("/api/devices")
+                val isMedia = cleanPath == "/api/stream" || cleanPath == "/api/download"
+                val allowed = trusted != null && when {
+                    isAdmin -> DevicePermission.Admin in trusted.permissions
+                    isMedia -> DevicePermission.MediaStreaming in trusted.permissions || DevicePermission.ReadWrite in trusted.permissions
+                    isWrite -> DevicePermission.ReadWrite in trusted.permissions || DevicePermission.UploadOnly in trusted.permissions
+                    else -> trusted.permissions.isNotEmpty()
+                }
+                if (!allowed) {
+                    sendResponse(output, "403 Forbidden", "application/json", "{\"error\":\"permission_denied\"}".toByteArray())
+                    socket.close(); return@withContext
+                }
+            }
+
             val rootDir = sharedDirectory ?: File(System.getProperty("user.home") ?: "/")
             val reqRelPath = extractParam(rawPath, "path") ?: cleanPath
             val targetFile = resolveFile(reqRelPath, rootDir)
@@ -213,6 +254,74 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
                 cleanPath == "/api/status" -> {
                     val json = """{"status":"active","port":$port,"dualLinkPort":${port + 1},"supportsDualLink":true,"name":"${esc(deviceName)}","requiresPin":true}"""
                     sendResponse(output, "200 OK", "application/json; charset=utf-8", json.toByteArray())
+                }
+                cleanPath == "/api/pair/complete" && method == "POST" -> {
+                    val deviceId = extractParam(rawPath, "deviceId")
+                    val deviceName = extractParam(rawPath, "deviceName") ?: "LinkShare device"
+                    val platform = extractParam(rawPath, "platform") ?: "unknown"
+                    val nonce = extractParam(rawPath, "nonce")
+                    val clientToken = extractParam(rawPath, "clientToken").orEmpty()
+                    val signature = extractParam(rawPath, "signature").orEmpty()
+                    val signedPayload = "${deviceId.orEmpty()}|$deviceName|$platform|$nonce"
+                    if (deviceId.isNullOrBlank() || nonce.isNullOrBlank() || !PairingSignature.verify(signedPayload, signature, enterpriseToken)) {
+                        sendResponse(output, "400 Bad Request", "application/json", "{\"error\":\"invalid_pairing_payload\"}".toByteArray())
+                    } else {
+                        val token = "device_${generatePin()}${generatePin()}"
+                        val remoteHost = (socket.remoteSocketAddress as? InetSocketAddress)?.address?.hostAddress
+                        trustedDevices[deviceId] = TrustedDevice(deviceId, deviceName, platform, host = remoteHost, permissions = setOf(DevicePermission.ReadWrite), isOnline = true, lastSeen = System.currentTimeMillis())
+                        trustedTokens[deviceId] = token
+                        if (clientToken.isNotBlank()) peerTokens[deviceId] = clientToken
+                        persistTrustedDevices()
+                        sendResponse(output, "200 OK", "application/json; charset=utf-8", "{\"status\":\"paired\",\"deviceId\":\"${esc(deviceId)}\",\"token\":\"$token\",\"permissions\":\"ReadWrite\"}".toByteArray())
+                    }
+                }
+                (cleanPath == "/api/devices" || cleanPath == "/api/devices/register") && method == "GET" -> {
+                    val items = trustedDevices.values.joinToString(",") { "{\"deviceId\":\"${esc(it.deviceId)}\",\"name\":\"${esc(it.name)}\",\"platform\":\"${esc(it.platform)}\",\"online\":${it.isOnline}}" }
+                    sendResponse(output, "200 OK", "application/json; charset=utf-8", "{\"devices\":[$items]}".toByteArray())
+                }
+                cleanPath.startsWith("/api/devices/") && method == "POST" && cleanPath.endsWith("/heartbeat") -> {
+                    val deviceId = cleanPath.removeSuffix("/heartbeat").substringAfterLast('/')
+                    trustedDevices[deviceId]?.let { trustedDevices[deviceId] = it.copy(isOnline = true, lastSeen = System.currentTimeMillis()) }
+                    val due = syncJobs.values.filter { it.deviceId == deviceId && it.enabled }.joinToString(",") { "\"${esc(it.id)}\"" }
+                    sendResponse(output, "200 OK", "application/json", "{\"status\":\"online\",\"syncJobs\":[$due]}".toByteArray())
+                }
+                cleanPath.startsWith("/api/devices/") && method == "PATCH" -> {
+                    val deviceId = cleanPath.substringAfterLast('/')
+                    val permission = extractParam(rawPath, "permission")?.let { runCatching { DevicePermission.valueOf(it) }.getOrNull() }
+                    if (trustedDevices.containsKey(deviceId) && permission != null) {
+                        trustedDevices[deviceId] = trustedDevices.getValue(deviceId).copy(permissions = setOf(permission))
+                        persistTrustedDevices()
+                        sendResponse(output, "200 OK", "application/json", "{\"status\":\"updated\"}".toByteArray())
+                    }
+                    else sendResponse(output, "404 Not Found", "application/json", "{\"error\":\"device_not_found\"}".toByteArray())
+                }
+                cleanPath.startsWith("/api/devices/") && method == "DELETE" -> {
+                    val deviceId = cleanPath.substringAfterLast('/')
+                    trustedDevices.remove(deviceId)
+                    trustedTokens.remove(deviceId)
+                    peerTokens.remove(deviceId)
+                    persistTrustedDevices()
+                    sendResponse(output, "200 OK", "application/json", "{\"status\":\"revoked\"}".toByteArray())
+                }
+                cleanPath == "/api/sync/jobs" && method == "GET" -> {
+                    val items = syncJobs.values.joinToString(",") { job -> "{\"id\":\"${esc(job.id)}\",\"deviceId\":\"${esc(job.deviceId)}\",\"localPath\":\"${esc(job.localPath)}\",\"remotePath\":\"${esc(job.remotePath)}\",\"direction\":\"${job.direction.name}\",\"enabled\":${job.enabled}}" }
+                    sendResponse(output, "200 OK", "application/json; charset=utf-8", "{\"jobs\":[$items]}".toByteArray())
+                }
+                cleanPath == "/api/sync/jobs" && method == "POST" -> {
+                    val id = extractParam(rawPath, "id") ?: "job_${generatePin()}"
+                    val deviceId = extractParam(rawPath, "deviceId").orEmpty()
+                    val localPath = extractParam(rawPath, "localPath").orEmpty()
+                    val remotePath = extractParam(rawPath, "remotePath").orEmpty()
+                    val direction = extractParam(rawPath, "direction")?.let { runCatching { SyncDirection.valueOf(it) }.getOrNull() } ?: SyncDirection.TwoWay
+                    val job = SyncJob(id, deviceId, localPath, remotePath, direction, extractParam(rawPath, "enabled") != "false")
+                    syncJobs[id] = job
+                    persistTrustedDevices()
+                    sendResponse(output, "201 Created", "application/json; charset=utf-8", "{\"status\":\"created\",\"id\":\"${esc(id)}\"}".toByteArray())
+                }
+                cleanPath.startsWith("/api/sync/jobs/") && method == "DELETE" -> {
+                    syncJobs.remove(cleanPath.substringAfterLast('/'))
+                    persistTrustedDevices()
+                    sendResponse(output, "200 OK", "application/json", "{\"status\":\"deleted\"}".toByteArray())
                 }
                 cleanPath == "/api/clipboard" -> {
                     if (method == "POST") {
@@ -232,6 +341,80 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
                         val hashes = manifest.pieceHashes.joinToString(",") { "\"${esc(it)}\"" }
                         val json = """{"fileId":"${esc(manifest.fileId)}","fileName":"${esc(manifest.fileName)}","fileSizeBytes":${manifest.fileSizeBytes},"pieceSize":${manifest.pieceSize},"pieceCount":${manifest.pieceCount},"pieceHashes":[$hashes],"totalHash":"${esc(manifest.totalHash)}"}"""
                         sendResponse(output, "200 OK", "application/json; charset=utf-8", json.toByteArray())
+                    }
+                }
+                cleanPath == "/api/swarm/receive/start" && method == "POST" -> {
+                    val transferId = "swarm_${generatePin()}${generatePin()}"
+                    val hashes = extractParam(rawPath, "pieceHashes").orEmpty().split('|').filter { it.isNotBlank() }
+                    val fileSize = extractParam(rawPath, "fileSize")?.toLongOrNull() ?: 0L
+                    val pieceSize = extractParam(rawPath, "pieceSize")?.toIntOrNull() ?: 0
+                    val pieceCount = extractParam(rawPath, "pieceCount")?.toIntOrNull() ?: 0
+                    val manifest = runCatching {
+                        SwarmManifest(
+                            fileId = extractParam(rawPath, "fileId").orEmpty(),
+                            fileName = extractParam(rawPath, "fileName") ?: "received.bin",
+                            fileSizeBytes = fileSize,
+                            pieceSize = pieceSize,
+                            pieceCount = pieceCount,
+                            pieceHashes = hashes,
+                            totalHash = extractParam(rawPath, "totalHash").orEmpty()
+                        )
+                    }.getOrNull()
+                    if (manifest == null || targetFile == rootDir) {
+                        sendResponse(output, "400 Bad Request", "application/json", "{\"error\":\"invalid_manifest\"}".toByteArray())
+                    } else {
+                        targetFile.parentFile?.mkdirs()
+                        val temp = File(targetFile.parentFile, ".${targetFile.name}.$transferId.part")
+                        java.io.RandomAccessFile(temp, "rw").use { it.setLength(manifest.fileSizeBytes) }
+                        incomingSwarmTransfers[transferId] = IncomingSwarmTransfer(temp, manifest, BitSet(manifest.pieceCount))
+                        sendResponse(output, "201 Created", "application/json", "{\"transferId\":\"$transferId\"}".toByteArray())
+                    }
+                }
+                cleanPath == "/api/swarm/receive/piece" && method == "PUT" -> {
+                    val transferId = extractParam(rawPath, "transferId")
+                    val pieceIndex = extractParam(rawPath, "piece")?.toIntOrNull()
+                    val transfer = transferId?.let { incomingSwarmTransfers[it] }
+                    if (transfer == null || pieceIndex == null || !transfer.manifest.isValidPieceIndex(pieceIndex)) {
+                        sendResponse(output, "404 Not Found", "application/json", "{\"error\":\"transfer_not_found\"}".toByteArray())
+                    } else {
+                        val data = input.readNBytes(contentLength)
+                        if (!PieceVerifier.verifyPiece(transfer.manifest, pieceIndex, data)) {
+                            sendResponse(output, "422 Unprocessable Entity", "application/json", "{\"error\":\"piece_hash_mismatch\"}".toByteArray())
+                        } else {
+                            java.io.RandomAccessFile(transfer.target, "rw").use { file ->
+                                file.seek(pieceIndex.toLong() * transfer.manifest.pieceSize)
+                                file.write(data)
+                            }
+                            synchronized(transfer.received) { transfer.received.set(pieceIndex) }
+                            sendResponse(output, "200 OK", "application/json", "{\"status\":\"piece_received\"}".toByteArray())
+                        }
+                    }
+                }
+                cleanPath == "/api/swarm/receive/complete" && method == "POST" -> {
+                    val transferId = extractParam(rawPath, "transferId")
+                    val transfer = transferId?.let { incomingSwarmTransfers[it] }
+                    if (transfer == null || transfer.received.cardinality() != transfer.manifest.pieceCount) {
+                        sendResponse(output, "409 Conflict", "application/json", "{\"error\":\"pieces_missing\"}".toByteArray())
+                    } else {
+                        val digest = MessageDigest.getInstance("SHA-256")
+                        transfer.target.inputStream().use { inputStream ->
+                            val buffer = ByteArray(64 * 1024)
+                            var read: Int
+                            while (inputStream.read(buffer).also { read = it } > 0) digest.update(buffer, 0, read)
+                        }
+                        val hash = digest.digest().joinToString("") { "%02x".format(it) }
+                        val expected = transfer.manifest.totalHash
+                        if (!hash.equals(expected, ignoreCase = true)) {
+                            transfer.target.delete(); incomingSwarmTransfers.remove(transferId)
+                            sendResponse(output, "422 Unprocessable Entity", "application/json", "{\"error\":\"total_hash_mismatch\"}".toByteArray())
+                        } else {
+                            val finalTarget = resolveFile(extractParam(rawPath, "path"), rootDir)
+                            finalTarget.parentFile?.mkdirs()
+                            if (finalTarget.exists()) finalTarget.delete()
+                            transfer.target.renameTo(finalTarget)
+                            incomingSwarmTransfers.remove(transferId)
+                            sendResponse(output, "200 OK", "application/json", "{\"status\":\"complete\",\"path\":\"${esc(relPath(rootDir, finalTarget))}\"}".toByteArray())
+                        }
                     }
                 }
                 cleanPath == "/api/swarm/piece" -> {
@@ -628,17 +811,21 @@ thead th:hover{color:var(--text)}
 .modal-body img{max-width:100%;max-height:80vh;object-fit:contain}
 .modal-body iframe{width:100%;height:75vh;border:none}
 /* Persistent, minimizable media players */
-.media-dock{position:fixed;left:20px;bottom:20px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 36px rgba(0,0,0,.55);z-index:10001;display:none;overflow:hidden}
+.media-dock{position:fixed;right:20px;top:72px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;box-shadow:0 10px 36px rgba(0,0,0,.55);z-index:10001;display:none;overflow:hidden}
 .media-dock.open{display:block}
 .audio-dock{width:360px}
-.video-dock{width:min(760px,calc(100vw - 40px));left:50%;transform:translateX(-50%);bottom:24px}
+.video-dock{width:360px}
 .media-dock.minimized .media-body{display:none}
-.media-head{display:flex;align-items:center;gap:8px;padding:9px 12px;color:var(--text);font-size:12px;font-weight:600}
+.media-head{display:flex;align-items:center;gap:8px;padding:11px 12px;color:var(--text);font-size:12px;font-weight:600}
 .media-head span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .media-head button{background:none;border:0;color:var(--text2);font-size:16px;cursor:pointer;padding:0 3px}
-.media-body{background:#000;padding:10px}
+.media-body{background:#101010;padding:12px}
 .media-body audio{width:100%}
-.media-body video{display:block;width:100%;max-height:65vh;background:#000}
+.media-body video{display:block;width:100%;max-height:240px;background:#000;border-radius:8px}
+.media-cover{height:170px;border-radius:8px;background:linear-gradient(135deg,#00796b,#17252a 55%,#111);display:flex;align-items:center;justify-content:center;margin-bottom:12px;color:#80cbc4}
+.media-cover svg{width:54px;height:54px;opacity:.9}
+.media-meta{display:flex;align-items:center;gap:10px;margin-bottom:10px}.media-meta strong{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.media-meta small{display:block;color:var(--text2);margin-top:3px}
+.queue-controls{display:flex;align-items:center;justify-content:center;gap:16px;margin-top:10px}.queue-controls button{border:0;background:none;color:var(--text);font-size:18px;cursor:pointer}.queue-controls button.play{background:var(--accent);border-radius:50%;width:34px;height:34px;color:white;font-size:14px}.queue-label{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin:12px 0 5px}.queue-list{max-height:130px;overflow:auto;border-top:1px solid var(--border)}.queue-item{padding:7px 4px;font-size:11px;color:var(--text2);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.queue-item.active{color:var(--accent);font-weight:600}.queue-item:hover{color:var(--text);background:var(--hover)}
 /* Upload Toast Panel */
 .upload-toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;width:320px;box-shadow:0 8px 24px rgba(0,0,0,0.4);display:none;flex-direction:column;gap:8px;z-index:10000}
 .upload-toast.active{display:flex}
@@ -657,6 +844,7 @@ thead th:hover{color:var(--text)}
   .addr-search{width:120px}
   .toolbar{padding:4px 8px}
   .tb-btn span{display:none}
+  .media-dock{right:10px;left:10px;top:auto;bottom:72px;width:auto}.video-dock{width:auto}
 }
 @media(max-width:480px){
   .c-size{display:none}
@@ -703,12 +891,12 @@ ${if(sorted.isEmpty()) "<div style='padding:3rem;text-align:center;color:var(--t
 </div>
 
 <div class="media-dock audio-dock" id="audioDock">
-  <div class="media-head"><span id="audioTitle">Audio</span><button onclick="toggleDock('audioDock')" title="Minimize">−</button><button onclick="closeDock('audioDock','audioPlayer')" title="Close">×</button></div>
-  <div class="media-body"><audio id="audioPlayer" controls></audio></div>
+  <div class="media-head"><span>Now playing</span><button onclick="toggleDock('audioDock')" title="Minimize">−</button><button onclick="closeDock('audioDock','audioPlayer')" title="Close">×</button></div>
+  <div class="media-body"><div class="media-cover"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg></div><div class="media-meta"><div><strong id="audioTitle">Audio</strong><small>LinkShare library · current folder</small></div></div><audio id="audioPlayer" controls></audio><div class="queue-controls"><button onclick="queuePrev()">⏮</button><button class="play" onclick="togglePlay('audioPlayer')">▶</button><button onclick="queueNext()">⏭</button></div><div class="queue-label">Up next</div><div class="queue-list" id="audioQueue"></div></div>
 </div>
 <div class="media-dock video-dock" id="videoDock">
-  <div class="media-head"><span id="videoTitle">Video</span><button onclick="toggleDock('videoDock')" title="Minimize">−</button><button onclick="closeDock('videoDock','videoPlayer')" title="Close">×</button></div>
-  <div class="media-body"><video id="videoPlayer" controls playsinline></video></div>
+  <div class="media-head"><span>Now watching</span><button onclick="toggleDock('videoDock')" title="Minimize">−</button><button onclick="closeDock('videoDock','videoPlayer')" title="Close">×</button></div>
+  <div class="media-body"><video id="videoPlayer" controls playsinline></video><div class="media-meta" style="margin-top:10px"><div><strong id="videoTitle">Video</strong><small>LinkShare library · current folder</small></div></div><div class="queue-controls"><button onclick="queuePrev()">⏮</button><button class="play" onclick="togglePlay('videoPlayer')">▶</button><button onclick="queueNext()">⏭</button></div><div class="queue-label">Up next</div><div class="queue-list" id="videoQueue"></div></div>
 </div>
 
 <!-- Upload Progress Toast -->
@@ -724,6 +912,7 @@ ${if(sorted.isEmpty()) "<div style='padding:3rem;text-align:center;color:var(--t
 <script>
 var PIN='$sessionPin',CUR='${escJs(rel)}';
 var ctxTarget=null;
+var mediaQueue=[],queueIndex=-1,queueKind='audio';
 
 function nav(p){location.href='/?path='+encodeURIComponent(p)+'&pin='+PIN}
 function goBack(){history.back()}
@@ -732,6 +921,9 @@ function dl(enc){var a=document.createElement('a');a.href='/api/download?path='+
 function playMedia(enc,name){
   var url='/api/stream?path='+enc+'&pin='+PIN;
   var isAudio=name.match(/\.(mp3|m4a|wav|flac|aac|ogg|opus|wma|amr|mid|midi)$/i);
+  queueKind=isAudio?'audio':'video';
+  mediaQueue=Array.from(document.querySelectorAll('.row')).filter(function(r){return r.getAttribute('data-media')==='true' && !!r.getAttribute('data-name').match(isAudio?/\.(mp3|m4a|wav|flac|aac|ogg|opus|wma|amr|mid|midi)$/i:/\.(mp4|mkv|webm|avi|mov|3gp|flv|m4v|ts|wmv)$/i)}).map(function(r){return {enc:r.getAttribute('data-enc'),name:r.getAttribute('data-name')}});
+  queueIndex=Math.max(0,mediaQueue.findIndex(function(i){return i.name===name})); renderQueue();
   closeDock(isAudio?'videoDock':'audioDock',isAudio?'videoPlayer':'audioPlayer');
   var dock=isAudio?'audioDock':'videoDock';
   var player=isAudio?document.getElementById('audioPlayer'):document.getElementById('videoPlayer');
@@ -740,6 +932,11 @@ function playMedia(enc,name){
   document.getElementById(dock).classList.add('open');
   player.play().catch(function(){});
 }
+function renderQueue(){var el=document.getElementById(queueKind==='audio'?'audioQueue':'videoQueue');if(!el)return;el.innerHTML=mediaQueue.map(function(i,n){return '<div class="queue-item '+(n===queueIndex?'active':'')+'" onclick="playMedia(\''+i.enc+'\',\''+i.name.replace(/'/g,"\\'")+'\')">'+(n+1)+'. '+i.name+'</div>'}).join('')}
+function queueNext(){if(!mediaQueue.length)return;queueIndex=(queueIndex+1)%mediaQueue.length;var i=mediaQueue[queueIndex];playMedia(i.enc,i.name)}
+function queuePrev(){if(!mediaQueue.length)return;queueIndex=(queueIndex-1+mediaQueue.length)%mediaQueue.length;var i=mediaQueue[queueIndex];playMedia(i.enc,i.name)}
+function togglePlay(id){var p=document.getElementById(id);p.paused?p.play():p.pause()}
+document.getElementById('audioPlayer').addEventListener('ended',queueNext);document.getElementById('videoPlayer').addEventListener('ended',queueNext);
 function toggleDock(id){document.getElementById(id).classList.toggle('minimized')}
 function closeDock(id,playerId){var dock=document.getElementById(id),player=document.getElementById(playerId);if(player){player.pause();player.removeAttribute('src');player.load()}dock.classList.remove('open','minimized')}
 function viewImg(enc,name){
@@ -866,6 +1063,74 @@ document.querySelector('.content').addEventListener('dragover',function(e){e.pre
 document.querySelector('.content').addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files.length)uploadFiles(e.dataTransfer.files)});
 </script>
 </body></html>"""
+    }
+
+    private suspend fun runHomeSyncLoop() {
+        val client = RemoteDeviceClient()
+        while (isRunning) {
+            kotlinx.coroutines.delay(15_000)
+            syncJobs.values.filter { it.enabled && it.direction != SyncDirection.Receive }.forEach { job ->
+                val device = trustedDevices[job.deviceId]
+                val host = device?.host
+                val token = peerTokens[job.deviceId]
+                if (host.isNullOrBlank() || token.isNullOrBlank()) return@forEach
+                val source = File(job.localPath)
+                val files = if (source.isFile) listOf(source to "/${source.name}") else if (source.isDirectory) {
+                    source.walkTopDown().filter { it.isFile }.map { file -> file to "/${job.remotePath.trim('/').let { if (it.isBlank()) "" else "$it/" }}${file.relativeTo(source).invariantSeparatorsPath}" }.toList()
+                } else emptyList()
+                files.forEach { (file, remotePath) ->
+                    val fingerprint = "${file.length()}:${file.lastModified()}"
+                    val key = "${job.id}:$remotePath"
+                    if (syncFingerprints[key] != fingerprint) {
+                        client.uploadSwarmFile(host, device.port, "", file.absolutePath, remotePath, accessToken = token)
+                            .onSuccess {
+                                syncFingerprints[key] = fingerprint
+                                syncJobs[job.id] = job.copy(lastRun = System.currentTimeMillis(), lastError = null)
+                                persistTrustedDevices()
+                            }
+                            .onFailure { error -> syncJobs[job.id] = job.copy(lastError = error.message); persistTrustedDevices() }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadTrustedDevices() {
+        trustedDevices.clear(); trustedTokens.clear()
+        val file = trustedStoreFile ?: return
+        if (!file.exists()) return
+        val props = Properties()
+        try {
+            file.inputStream().use { props.load(it) }
+            props.stringPropertyNames().forEach { id ->
+                if (id.startsWith("job.")) {
+                    val jobId = id.removePrefix("job.")
+                    val value = props.getProperty(id).split('|')
+                    if (value.size >= 5) syncJobs[jobId] = SyncJob(jobId, value[0], value[1], value[2], runCatching { SyncDirection.valueOf(value[3]) }.getOrDefault(SyncDirection.TwoWay), value[4] == "true")
+                    return@forEach
+                }
+                val value = props.getProperty(id).split('|')
+                if (value.size >= 5) {
+                    trustedDevices[id] = TrustedDevice(id, value[0], value[1], host = value.getOrNull(5), permissions = value[3].split(',').mapNotNull { runCatching { DevicePermission.valueOf(it) }.getOrNull() }.toSet(), isOnline = false, lastSeen = value[4].toLongOrNull() ?: 0L)
+                    trustedTokens[id] = value[2]
+                    value.getOrNull(6)?.takeIf { it.isNotBlank() }?.let { peerTokens[id] = it }
+                }
+            }
+        } catch (_: Exception) { }
+    }
+
+    private fun persistTrustedDevices() {
+        val file = trustedStoreFile ?: return
+        file.parentFile?.mkdirs()
+        val props = Properties()
+        trustedDevices.forEach { (id, device) ->
+            val token = trustedTokens[id].orEmpty()
+            props.setProperty(id, listOf(device.name, device.platform, token, device.permissions.joinToString(",") { it.name }, device.lastSeen.toString(), device.host.orEmpty(), peerTokens[id].orEmpty()).joinToString("|"))
+        }
+        syncJobs.forEach { (id, job) ->
+            props.setProperty("job.$id", listOf(job.deviceId, job.localPath, job.remotePath, job.direction.name, job.enabled.toString()).joinToString("|"))
+        }
+        try { file.outputStream().use { props.store(it, "LinkShare trusted devices") } } catch (_: Exception) { }
     }
 
     private fun buildBreadcrumbs(relPath: String): String {

@@ -31,12 +31,15 @@ import app.linkshare.platform.PlatformFtpServer
 import app.linkshare.platform.PlatformHttpServer
 import app.linkshare.platform.PlatformNetwork
 import app.linkshare.platform.QrCode
+import app.linkshare.platform.PairingSignature
 import app.linkshare.ui.screens.DiscoveryScreen
 import app.linkshare.ui.screens.LocalServerScreen
 import app.linkshare.ui.screens.RemoteExplorerScreen
 import app.linkshare.ui.screens.SettingsScreen
 import app.linkshare.ui.screens.TransferScreen
 import app.linkshare.ui.screens.AppSharingScreen
+import app.linkshare.ui.screens.SharePickerScreen
+import app.linkshare.ui.screens.RecipientSelectionScreen
 import app.linkshare.ui.theme.*
 import kotlinx.coroutines.launch
 
@@ -64,9 +67,11 @@ fun App(
     onStartHotspot: ((onReady: (HotspotInfo) -> Unit, onError: (String) -> Unit) -> Unit)? = null,
     incomingConnection: String? = null,
     onScanQrCode: (() -> Unit)? = null,
+    onPairingToken: (deviceId: String, token: String) -> Unit = { _, _ -> },
     onLoadApps: (suspend () -> List<SharedAppInfo>)? = null,
     onPrepareApp: (suspend (SharedAppInfo) -> String?)? = null,
-    onInstallApk: ((String) -> Unit)? = null
+    onInstallApk: ((String) -> Unit)? = null,
+    appsEnabled: Boolean = true
 ) {
     val scope = rememberCoroutineScope()
     var currentMountedDir by remember(currentDirectory) { mutableStateOf(currentDirectory.ifBlank { "/storage/emulated/0" }) }
@@ -83,10 +88,14 @@ fun App(
 
         var activeRemotePeer by remember { mutableStateOf<PeerDevice?>(null) }
         var incomingPin by remember { mutableStateOf<String?>(null) }
+        var pairingMessage by remember { mutableStateOf<String?>(null) }
         var transferState by remember { mutableStateOf<TransferState>(TransferState.Idle) }
         val remoteClient = remember { RemoteDeviceClient() }
         val swarmCoordinator = remember { SwarmTransferCoordinator(remoteClient) }
         var showQuickConnect by remember { mutableStateOf(false) }
+        var showSharePicker by remember { mutableStateOf(false) }
+        var pendingFiles by remember { mutableStateOf<List<app.linkshare.model.SelectableFile>>(emptyList()) }
+        var showRecipientSelection by remember { mutableStateOf(false) }
         var hotspotInfo by remember { mutableStateOf<HotspotInfo?>(null) }
         var hotspotError by remember { mutableStateOf<String?>(null) }
         val connectionAddresses = remember { PlatformNetwork.getAllActiveIpAddresses() }
@@ -110,8 +119,25 @@ fun App(
                 val port = if (linkMatch != null) {
                     Regex("[?&]port=(\\d+)").find(value)?.groupValues?.get(1)?.toIntOrNull() ?: 8888
                 } else match.groupValues[2].toIntOrNull() ?: 8888
-                incomingPin = if (linkMatch != null) linkMatch.groupValues[2] else match.groupValues[3]
-                activeRemotePeer = PeerDevice("qr-$host", "LinkShare device", host, port)
+                val pin = if (linkMatch != null) linkMatch.groupValues[2] else match.groupValues[3]
+                val nonce = Regex("[?&]nonce=([^&]+)").find(value)?.groupValues?.get(1).orEmpty()
+                val signature = Regex("[?&]signature=([^&]+)").find(value)?.groupValues?.get(1).orEmpty()
+                val expiresAt = Regex("[?&]expires=(\\d+)").find(value)?.groupValues?.get(1)?.toLongOrNull() ?: Long.MAX_VALUE
+                val remoteName = Regex("[?&]name=([^&]+)").find(value)?.groupValues?.get(1)?.replace("+", " ") ?: "LinkShare device"
+                incomingPin = pin
+                activeRemotePeer = PeerDevice("qr-$host", remoteName, host, port, accessPin = pin)
+                if (expiresAt < currentTimeMillis()) {
+                    pairingMessage = "QR code expired. Scan a new code."
+                } else if (nonce.isNotBlank()) {
+                    scope.launch {
+                        remoteClient.completePairing(host, port, pin, "device-${settings.deviceName}", settings.deviceName, "linkshare", nonce, signature, httpServer.enterpriseToken)
+                            .onSuccess {
+                                onPairingToken(it.deviceId, it.token)
+                                pairingMessage = "Device added to home server"
+                            }
+                            .onFailure { pairingMessage = "Pairing failed: ${it.message ?: "unknown error"}" }
+                    }
+                }
             }
         }
 
@@ -128,7 +154,9 @@ fun App(
                 },
                 onScanQrCode = onScanQrCode,
                 onCopy = { onCopyAddress(activeQuickConnectUrl) },
-                onDismiss = { showQuickConnect = false }
+                onDismiss = { showQuickConnect = false },
+                deviceName = settings.deviceName,
+                signingSecret = httpServer.enterpriseToken
             )
         }
 
@@ -189,7 +217,8 @@ fun App(
                                     )
                                 },
                                 selected = isSelected,
-                                onClick = { selectedTab = tab },
+                                onClick = { if (tab != NavTab.Apps || appsEnabled) selectedTab = tab },
+                                enabled = tab != NavTab.Apps || appsEnabled,
                                 colors = NavigationBarItemDefaults.colors(
                                     selectedIconColor = NougatTeal,
                                     selectedTextColor = NougatTeal,
@@ -209,7 +238,65 @@ fun App(
                     .background(NougatBackground)
                     .padding(padding)
             ) {
-                if (activeRemotePeer != null) {
+                if (showRecipientSelection) {
+                    RecipientSelectionScreen(
+                        files = pendingFiles,
+                        peers = discoveredPeers,
+                        isSearching = isSearching,
+                        onScan = { triggerFastScan() },
+                        onBack = { showRecipientSelection = false; showSharePicker = true },
+                        onConfirm = { recipients ->
+                            transferState = TransferState.Connecting(recipients.size, pendingFiles.firstOrNull()?.name ?: "Selected files")
+                            showRecipientSelection = false
+                            selectedTab = NavTab.Transfer
+                            scope.launch {
+                                fun collect(file: app.linkshare.model.SelectableFile, relativePath: String): List<Pair<String, String>> {
+                                    if (!file.isDirectory) return listOf(file.path to relativePath)
+                                    return fileSystem.listFiles(file.path).flatMap { child ->
+                                        val childCategory = app.linkshare.model.FileCategory.All
+                                        collect(
+                                            app.linkshare.model.SelectableFile(child.path, child.name, child.path, child.sizeBytes, child.lastModified, child.isDirectory, childCategory),
+                                            "$relativePath/${child.name}"
+                                        )
+                                    }
+                                }
+                                val transferFiles = pendingFiles.flatMap { collect(it, "/${it.name}") }
+                                var failed: String? = null
+                                var completedBytes = 0L
+                                recipients.forEach { recipient ->
+                                    val ip = recipient.ipAddress ?: return@forEach
+                                    transferFiles.forEach { (sourcePath, remotePath) ->
+                                        val upload = if (java.io.File(sourcePath).length() >= 1024L * 1024L) {
+                                            remoteClient.uploadSwarmFile(ip, recipient.port, recipient.accessPin ?: httpServer.sessionPin, sourcePath, remotePath)
+                                        } else {
+                                            remoteClient.uploadFile(ip, recipient.port, recipient.accessPin ?: httpServer.sessionPin, sourcePath, remotePath)
+                                        }
+                                        upload
+                                            .onSuccess { completedBytes += it }
+                                            .onFailure { failed = it.message ?: "Upload failed" }
+                                    }
+                                }
+                                transferState = if (failed == null) {
+                                    TransferState.Completed("${transferFiles.size} files", completedBytes, 0L, 0L)
+                                } else {
+                                    TransferState.Failed("Batch transfer", failed ?: "Upload failed")
+                                }
+                            }
+                        }
+                    )
+                } else if (showSharePicker) {
+                    SharePickerScreen(
+                        fileSystem = fileSystem,
+                        directory = currentMountedDir,
+                        onBack = { showSharePicker = false },
+                        onSend = { files ->
+                            pendingFiles = files
+                            showSharePicker = false
+                            showRecipientSelection = true
+                            if (discoveredPeers.isEmpty()) triggerFastScan()
+                        }
+                    )
+                } else if (activeRemotePeer != null) {
                     val peer = activeRemotePeer!!
                     RemoteExplorerScreen(
                         peerName = peer.name,
@@ -265,7 +352,9 @@ fun App(
                             onCopyAddress = onCopyAddress,
                             mountPoints = mountPoints,
                             onSharingStarted = onSharingStarted,
-                            onSharingStopped = onSharingStopped
+                            onSharingStopped = onSharingStopped,
+                            onReceiveClicked = { selectedTab = NavTab.Discovery },
+                            onSendClicked = { showSharePicker = true }
                         )
                         NavTab.Discovery -> DiscoveryScreen(
                             discoveredPeers = discoveredPeers,
@@ -290,6 +379,11 @@ fun App(
                         )
                     }
                 }
+                pairingMessage?.let { message ->
+                    Surface(Modifier.align(Alignment.BottomCenter).padding(16.dp), color = NougatSurfaceLight, shape = RoundedCornerShape(12.dp)) {
+                        Text(message, color = if (message.startsWith("Device added")) NougatTealLight else NougatRed, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), fontSize = 12.sp)
+                    }
+                }
             }
         }
     }
@@ -303,11 +397,15 @@ private fun QuickConnectDialog(
     onStartHotspot: (() -> Unit)?,
     onScanQrCode: (() -> Unit)?,
     onCopy: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    deviceName: String,
+    signingSecret: String
 ) {
+    val qrNonce = remember(connectionUrl, hotspotInfo) { "${currentTimeMillis()}-${connectionUrl.hashCode()}" }
+    val signature = PairingSignature.sign("device-$deviceName|$deviceName|linkshare|$qrNonce", signingSecret)
     val qrPayload = hotspotInfo?.let {
-        "linkshare://connect?host=${it.address}&port=8888&pin=${connectionUrl.substringAfter("pin=")}&ssid=${it.ssid}&password=${it.password}"
-    } ?: connectionUrl
+        "linkshare://connect?host=${it.address}&port=8888&pin=${connectionUrl.substringAfter("pin=")}&name=$deviceName&nonce=$qrNonce&signature=$signature&expires=${currentTimeMillis() + 120000}&ssid=${it.ssid}&password=${it.password}"
+    } ?: "$connectionUrl&name=$deviceName&nonce=$qrNonce&signature=$signature&expires=${currentTimeMillis() + 120000}"
     val matrix = remember(qrPayload) { QrCode.encode(qrPayload) }
     AlertDialog(
         onDismissRequest = onDismiss,
