@@ -4,16 +4,19 @@
 
 # LinkShare
 
-**High-Performance LAN & Wi-Fi Direct Peer-to-Peer File Sharing**
+**High-Performance Multiplatform LAN & Wi-Fi Direct File Sharing**
 
 [![Android](https://img.shields.io/badge/Android-7.0+-009688?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
-[![Kotlin](https://img.shields.io/badge/Kotlin-1.9-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Windows](https://img.shields.io/badge/Windows-10+-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://microsoft.com)
+[![macOS](https://img.shields.io/badge/macOS-12+-000000?style=for-the-badge&logo=apple&logoColor=white)](https://apple.com)
+[![Linux](https://img.shields.io/badge/Linux-Ubuntu%2FDebian-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://kernel.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.1%20KMP-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-FF9800?style=for-the-badge)](LICENSE)
 [![Build](https://img.shields.io/github/actions/workflow/status/Flaxmbot/LinkShare/ci_cd.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI)](https://github.com/Flaxmbot/LinkShare/actions)
 
 <br/>
 
-100% Offline &middot; Zero Cloud &middot; Privacy First
+100% Offline &middot; Multiplatform &middot; Zero Cloud &middot; Privacy First
 
 ---
 
@@ -21,7 +24,7 @@
 
 ## Overview
 
-LinkShare is an open-source, privacy-first file sharing suite for ultra-fast transfers across local area networks and Wi-Fi Direct. It runs entirely offline with no cloud servers, external accounts, or internet connection required.
+LinkShare is a multiplatform, privacy-first file sharing suite powered by **Kotlin Multiplatform (KMP)** and **Compose Multiplatform**. It enables ultra-fast transfers across local area networks and Wi-Fi Direct on Android, Windows, macOS, Linux, and iOS with no cloud servers or internet connection required.
 
 ---
 
@@ -29,14 +32,15 @@ LinkShare is an open-source, privacy-first file sharing suite for ultra-fast tra
 
 | Feature | Description |
 | :--- | :--- |
-| **ShareMe App Extractor** | Extract installed APKs and share over LAN in one tap |
-| **WebDAV Gateway** | Mount internal storage as a network drive on TVs, Kodi, Finder |
-| **FTP Server** | Full storage access from Windows Explorer, Finder, or any FTP client |
-| **LAN Clipboard** | Real-time cross-device text copy-paste |
-| **Media Streaming** | HTML5 video/audio with HTTP 206 partial content and PDF viewing |
-| **Dual-Link Bonding** | Aggregate Wi-Fi + Wi-Fi Direct channels simultaneously |
-| **Swarm P2P** | Multi-peer parallel piece distribution with SHA-256 verification |
-| **Access Control** | 4-digit PIN, Bearer Token auth, bandwidth cap, and JSON audit logs |
+| **Windows 11 File Explorer Web Portal** | Full-featured responsive web portal styled after Windows 11 File Explorer with context menus, search, sorting, drag & drop, and media players |
+| **Native Media Players & Viewers** | Built-in HTML5 video, audio, image, and document viewers for instant streaming |
+| **WebDAV Gateway** | Mount shared directories as native network drives on Windows, macOS Finder, or Kodi |
+| **FTP Server** | RFC 959 compliant FTP access from Windows Explorer, Finder, or any FTP client |
+| **LAN Device Discovery** | Pulsing radar network scanner & manual IP connection with port guidance |
+| **Universal LAN Clipboard** | Real-time cross-device text copy & paste sync |
+| **Swarm P2P** | BitTorrent-style multi-peer piece distribution with SHA-256 integrity verification |
+| **Directory Mounting** | Easily select and mount any directory on your device to share over LAN |
+| **Security & Privacy** | 4-digit PIN authentication, Bearer Token auth, and zero cloud tracking |
 
 ---
 
@@ -50,69 +54,16 @@ LinkShare is an open-source, privacy-first file sharing suite for ultra-fast tra
 
 ---
 
-## Download
+## Downloads
 
-Get the latest release APK from the [Releases](https://github.com/Flaxmbot/LinkShare/releases) page.
+Native installers are automatically generated for all platforms on each release:
 
-| Platform | File | Requirements |
+| Platform | Installer / Package | Requirements |
 | :--- | :--- | :--- |
-| Android | `LinkShare-v1.0.0-android.apk` | Android 7.0+ (API 26) |
-
----
-
-## CLI Reference
-
-LinkShare includes a headless server daemon for Linux servers and Raspberry Pi deployments.
-
-### Usage
-
-```bash
-java -cp linkshare.jar app.linkshare.cli.LinkShareCli \
-  --port 8080 \
-  --ftp-port 2121 \
-  --dir /storage/emulated/0 \
-  --pin 4821 \
-  --timeout 15 \
-  --speed 50
-```
-
-### Options
-
-| Flag | Alias | Description | Default |
-| :--- | :--- | :--- | :--- |
-| `--port <port>` | `-p` | HTTP/WebDAV server port | `8080` |
-| `--ftp-port <port>` | | FTP server port | `2121` |
-| `--dir <path>` | `-d` | Root shared directory | `/storage/emulated/0` |
-| `--pin <pin>` | | 4-digit access PIN | Random |
-| `--timeout <mins>` | | Auto-disconnect timeout (minutes) | `0` (disabled) |
-| `--speed <mbps>` | | Bandwidth cap (MB/s) | `0` (unlimited) |
-| `--help` | `-h` | Show help | |
-
----
-
-## Linux Service
-
-Register LinkShare as a systemd service:
-
-```ini
-# /etc/systemd/system/linkshare.service
-[Unit]
-Description=LinkShare LAN File Daemon
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/java -cp /opt/linkshare/linkshare.jar app.linkshare.cli.LinkShareCli --port 8080 --ftp-port 2121 --dir /srv/share --pin 4821
-Restart=always
-User=root
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now linkshare
-```
+| **Android** | `LinkShare-android.apk` | Android 7.0+ (API 26+) |
+| **Windows** | `LinkShare-windows.msi` | Windows 10 / 11 (64-bit) |
+| **macOS** | `LinkShare-macos.dmg` | macOS 12+ (Apple Silicon & Intel) |
+| **Linux** | `LinkShare-linux.deb` | Ubuntu / Debian-based distros |
 
 ---
 
@@ -121,22 +72,28 @@ sudo systemctl enable --now linkshare
 ### Prerequisites
 
 - JDK 17+
-- Android SDK 34
+- Android SDK 34 (for Android target)
 
-### Build
+### Build Commands
 
 ```bash
 git clone https://github.com/Flaxmbot/LinkShare.git
 cd LinkShare
-./gradlew assembleRelease
-```
 
-The APK will be at `app/build/outputs/apk/release/`.
+# Run Desktop App locally
+./gradlew :composeApp:run
 
-### Test
+# Build Android Release APK
+./gradlew :composeApp:assembleRelease
 
-```bash
-./gradlew test
+# Package Windows MSI Installer
+./gradlew :composeApp:packageMsi
+
+# Package macOS DMG Installer
+./gradlew :composeApp:packageDmg
+
+# Package Linux DEB Installer
+./gradlew :composeApp:packageDeb
 ```
 
 ---
@@ -150,11 +107,12 @@ The APK will be at `app/build/outputs/apk/release/`.
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/status` | Server health, ports, session PIN, Bearer token |
-| `GET` | `/api/browse?path=/` | Directory listing with sizes and timestamps |
-| `GET` | `/api/stream?path=/file` | Media streaming with HTTP 206 range support |
+| `GET` | `/api/status` | Server status, active port, session PIN, and mounted directory |
+| `GET` | `/api/browse?path=/` | Directory listing with file metadata, sizes, and timestamps |
+| `GET` | `/api/stream?path=/file` | High-speed file streaming with HTTP 206 range request support |
 | `POST` | `/api/upload` | Multipart file upload |
-| `GET` / `POST` | `/api/clipboard` | Read or sync LAN clipboard |
+| `POST` | `/api/delete` | Delete file or directory |
+| `GET` / `POST` | `/api/clipboard` | Read or sync LAN clipboard text |
 
 </details>
 

@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "LinkShare"
-include(":app")
+include(":composeApp")
