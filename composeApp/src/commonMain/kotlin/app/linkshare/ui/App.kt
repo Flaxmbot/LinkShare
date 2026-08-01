@@ -79,9 +79,6 @@ fun App(
             )
         }
 
-        // Pending file transfer confirmation prompt
-        var pendingTransferPeer by remember { mutableStateOf<PeerDevice?>(null) }
-
         // Automatically start fast 1-2 second scan when switching to Discovery tab
         fun triggerFastScan() {
             isSearching = true
@@ -96,54 +93,6 @@ fun App(
             if (selectedTab == NavTab.Discovery) {
                 triggerFastScan()
             }
-        }
-
-        // File Transfer Request Confirmation Prompt
-        if (pendingTransferPeer != null) {
-            val peer = pendingTransferPeer!!
-            AlertDialog(
-                onDismissRequest = { pendingTransferPeer = null },
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.SwapHoriz, contentDescription = null, tint = NougatTeal, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Connect to ${peer.name}", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                    }
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = "Open this device to browse shared files and download them to your device.",
-                            fontSize = 12.sp,
-                            color = NougatTextSecondary
-                        )
-                        Text(
-                            text = "Destination: $currentMountedDir",
-                            fontSize = 11.sp,
-                            color = NougatTealLight
-                        )
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            activeRemotePeer = peer
-                            pendingTransferPeer = null
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = NougatTeal),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text("BROWSE FILES", fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { pendingTransferPeer = null }) {
-                        Text("CANCEL", color = NougatTextSecondary)
-                    }
-                },
-                containerColor = NougatSurface,
-                shape = RoundedCornerShape(4.dp)
-            )
         }
 
         Scaffold(
@@ -257,23 +206,8 @@ fun App(
                             discoveredPeers = discoveredPeers,
                             isSearching = isSearching,
                             onStartScan = { triggerFastScan() },
-                            onConnectPeerClicked = { peer ->
-                                pendingTransferPeer = peer
-                            },
                             onBrowsePeerFilesClicked = { peer ->
                                 activeRemotePeer = peer
-                            },
-                            onConnectByIp = { ip, port ->
-                                scope.launch {
-                                    val probedPeer = LanScanner.probePeer(ip, port)
-                                    val targetPeer = probedPeer ?: PeerDevice(
-                                        id = "peer_$ip",
-                                        name = "LinkShare Peer ($ip)",
-                                        ipAddress = ip,
-                                        port = port
-                                    )
-                                    activeRemotePeer = targetPeer
-                                }
                             }
                         )
                         NavTab.Transfer -> TransferScreen(

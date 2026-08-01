@@ -95,7 +95,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-    versionName = "1.1.0"
+    versionName = "1.1.1"
     }
 
     signingConfigs {
@@ -135,7 +135,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "LinkShare"
-            packageVersion = "1.1.0"
+            packageVersion = "1.1.1"
             description = "High-Performance LAN & Wi-Fi Direct P2P File Sharing"
             vendor = "LinkShare"
 
