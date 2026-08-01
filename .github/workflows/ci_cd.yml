@@ -17,6 +17,22 @@ jobs:
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - uses: gradle/actions/setup-gradle@v3
+      - name: Configure stable release signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.LINKSHARE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.LINKSHARE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.LINKSHARE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.LINKSHARE_KEY_PASSWORD }}
+        run: |
+          test -n "$KEYSTORE_BASE64"
+          mkdir -p keystore
+          echo "$KEYSTORE_BASE64" | base64 --decode > keystore/release.jks
+          cat > keystore/credentials.properties <<EOF
+          RELEASE_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD
+          RELEASE_KEY_ALIAS=$KEY_ALIAS
+          RELEASE_KEY_PASSWORD=$KEY_PASSWORD
+          EOF
       - run: chmod +x gradlew
       - run: ./gradlew :composeApp:assembleRelease --no-daemon
       - uses: actions/upload-artifact@v4
@@ -90,22 +106,15 @@ jobs:
           body: |
             ## LinkShare ${{ github.ref_name }}
 
-            High-Performance Multiplatform LAN & Wi-Fi Direct File Sharing
+            Offline-first local-network file sharing.
 
-            ### Downloads
-            | Platform | File |
-            |----------|------|
-            | Android | `LinkShare-android.apk` |
-            | Windows | `LinkShare-windows.msi` |
-            | macOS | `LinkShare-macos.dmg` |
-            | Linux | `LinkShare-linux.deb` |
+            ### Included artifacts
+            - Android release APK
+            - Windows MSI
+            - macOS DMG
+            - Debian Linux DEB
 
-            ### Highlights
-            - HTTP/FTP server with Windows 11 File Explorer web portal
-            - WebDAV protocol gateway for native OS mounting
-            - BitTorrent-style swarm file distribution
-            - Universal clipboard sync
-            - PIN-secured file access
+            See the repository README for supported features, security notes, and known limitations. This release does not claim BitTorrent protocol compatibility or bonded dual-link networking.
           files: |
             artifacts/**/*.apk
             artifacts/**/*.msi

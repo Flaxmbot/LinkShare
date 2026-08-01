@@ -37,7 +37,7 @@ fun TransferScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "Transfers",
+            text = "FILE TRANSFER DASHBOARD",
             fontWeight = FontWeight.Bold,
             fontSize = 12.sp,
             letterSpacing = 1.sp,

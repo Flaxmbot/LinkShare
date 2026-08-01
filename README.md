@@ -1,125 +1,111 @@
-<div align="center">
-
-<img src="art/app_icon.svg" width="120" height="120" alt="LinkShare" />
-
 # LinkShare
 
-**High-Performance Multiplatform LAN & Wi-Fi Direct File Sharing**
+LinkShare is an offline-first file sharing app for local networks. It provides an Android app and Compose Desktop targets for Windows, macOS, and Debian-based Linux systems. Files are transferred directly between devices; there is no cloud relay or account service.
 
-[![Android](https://img.shields.io/badge/Android-7.0+-009688?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
-[![Windows](https://img.shields.io/badge/Windows-10+-0078D4?style=for-the-badge&logo=windows&logoColor=white)](https://microsoft.com)
-[![macOS](https://img.shields.io/badge/macOS-12+-000000?style=for-the-badge&logo=apple&logoColor=white)](https://apple.com)
-[![Linux](https://img.shields.io/badge/Linux-Ubuntu%2FDebian-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://kernel.org)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.1%20KMP-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![License](https://img.shields.io/badge/License-Apache%202.0-FF9800?style=for-the-badge)](LICENSE)
-[![Build](https://img.shields.io/github/actions/workflow/status/Flaxmbot/LinkShare/ci_cd.yml?style=for-the-badge&logo=githubactions&logoColor=white&label=CI)](https://github.com/Flaxmbot/LinkShare/actions)
+## Current release
 
-<br/>
+The current development release is `1.2.0` (`versionCode 2`). Release artifacts are produced by GitHub Actions for Android, Windows, macOS, and Linux when a `v*` tag is pushed.
 
-100% Offline &middot; Multiplatform &middot; Zero Cloud &middot; Privacy First
+The repository also contains iOS source sets, but this repository does not currently publish a signed iOS application.
 
----
+## What works today
 
-</div>
+- HTTP sharing server bound to all local interfaces.
+- PIN-protected web file browser with upload, download, delete, range streaming, and media playback.
+- WebDAV methods used by common clients: `PROPFIND`, `MKCOL`, and `PUT`.
+- Separate FTP server with PIN authentication.
+- Directory selection with Android internal storage and detected mounted volumes.
+- LAN discovery by scanning active local IPv4 subnet prefixes.
+- QR-based connection flow and Android QR scanner.
+- Android local-only hotspot hosting when Android and device permissions allow it.
+- Foreground sharing service and Wi-Fi lock while sharing in the background.
+- Audio and video web players with minimize controls and keyboard shortcuts.
+- Android installed-app listing, APK extraction into the shared directory, and Android installer handoff.
+- SHA-256 verified piece manifests, authenticated piece endpoints, resumable piece storage, and swarm scheduling foundations.
 
-## Overview
+## Important limitations
 
-LinkShare is a multiplatform, privacy-first file sharing suite powered by **Kotlin Multiplatform (KMP)** and **Compose Multiplatform**. It enables ultra-fast transfers across local area networks and Wi-Fi Direct on Android, Windows, macOS, Linux, and iOS with no cloud servers or internet connection required.
+- Android does not allow an app to silently join arbitrary Wi-Fi networks on modern versions. The receiver may need to approve or complete the connection in system UI.
+- Dual-link detection and scheduling are implemented, but LinkShare does not yet bond two interfaces into one kernel-level connection. The current transport uses separate HTTP requests and requires real multi-interface testing before claiming a speed improvement.
+- Swarm transfer currently exposes verified piece transport and a JVM coordinator. It is not a complete BitTorrent-compatible protocol and does not interoperate with `.torrent` clients.
+- Android APK installation still requires Android’s package-installer approval and may require enabling installation from this source.
+- Windows firewall rules are outside the app. If inbound traffic is blocked, allow the selected server ports in Windows Firewall.
+- The app has not been certified against every router, hotspot implementation, SD card provider, FTP client, or WebDAV client.
 
----
+## Supported release artifacts
 
-## Features
+| Platform | Artifact | Notes |
+| --- | --- | --- |
+| Android | APK | API 26+; release APK is signed with the repository’s stable release key configured in GitHub Actions |
+| Windows | MSI | Built with Compose Desktop and WiX on GitHub Actions |
+| macOS | DMG | Built on a macOS GitHub Actions runner |
+| Linux | DEB | Built on an Ubuntu GitHub Actions runner |
 
-| Feature | Description |
-| :--- | :--- |
-| **Windows 11 File Explorer Web Portal** | Full-featured responsive web portal styled after Windows 11 File Explorer with context menus, search, sorting, drag & drop, and media players |
-| **Native Media Players & Viewers** | Built-in HTML5 video, audio, image, and document viewers for instant streaming |
-| **WebDAV Gateway** | Mount shared directories as native network drives on Windows, macOS Finder, or Kodi |
-| **FTP Server** | RFC 959 compliant FTP access from Windows Explorer, Finder, or any FTP client |
-| **LAN Device Discovery** | Pulsing radar network scanner & manual IP connection with port guidance |
-| **Universal LAN Clipboard** | Real-time cross-device text copy & paste sync |
-| **Swarm P2P** | BitTorrent-style multi-peer piece distribution with SHA-256 integrity verification |
-| **Directory Mounting** | Easily select and mount any directory on your device to share over LAN |
-| **Security & Privacy** | 4-digit PIN authentication, Bearer Token auth, and zero cloud tracking |
+Do not install a debug APK over a release APK, or vice versa. Android requires the same signing certificate for an in-place update. Very old development builds may need to be uninstalled once before installing the stable-signed release; future releases use the same stable signing key and increasing version codes.
 
----
+## Build locally
 
-## Architecture
+Requirements:
 
-<div align="center">
-
-![Architecture](art/architecture.svg)
-
-</div>
-
----
-
-## Downloads
-
-Native installers are automatically generated for all platforms on each release:
-
-| Platform | Installer / Package | Requirements |
-| :--- | :--- | :--- |
-| **Android** | `LinkShare-android.apk` | Android 7.0+ (API 26+) |
-| **Windows** | `LinkShare-windows.msi` | Windows 10 / 11 (64-bit) |
-| **macOS** | `LinkShare-macos.dmg` | macOS 12+ (Apple Silicon & Intel) |
-| **Linux** | `LinkShare-linux.deb` | Ubuntu / Debian-based distros |
-
----
-
-## Building from Source
-
-### Prerequisites
-
-- JDK 17+
-- Android SDK 34 (for Android target)
-
-### Build Commands
+- JDK 17 or newer
+- Android SDK 34 for Android builds
+- Gradle wrapper included in this repository
 
 ```bash
 git clone https://github.com/Flaxmbot/LinkShare.git
 cd LinkShare
 
-# Run Desktop App locally
-./gradlew :composeApp:run
+# Compile desktop and Android code
+./gradlew :composeApp:compileKotlinDesktop :composeApp:compileDebugKotlinAndroid
 
-# Build Android Release APK
+# Android debug APK
+./gradlew :composeApp:assembleDebug
+
+# Android release APK; requires keystore/release.jks or release signing environment variables
 ./gradlew :composeApp:assembleRelease
 
-# Package Windows MSI Installer
+# Desktop packages; run the target that matches the host OS
 ./gradlew :composeApp:packageMsi
-
-# Package macOS DMG Installer
 ./gradlew :composeApp:packageDmg
-
-# Package Linux DEB Installer
 ./gradlew :composeApp:packageDeb
 ```
 
----
+The Android debug APK is written to `composeApp/build/outputs/apk/debug/`. Desktop packages are written below `composeApp/build/compose/binaries/`.
 
-## REST API
+## Server endpoints
 
-<details>
-<summary><b>View Endpoints</b></summary>
+All endpoints except `/api/status` require the session PIN, either as `pin` query parameter, Basic authentication password, or the server bearer token where applicable.
 
-<br/>
+| Method | Endpoint | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/status` | Safe server status and device name |
+| `GET` | `/api/browse?path=/` | Browse a shared directory |
+| `GET` | `/api/stream?path=/file` | Stream a file with range support |
+| `GET` | `/api/download?path=/file` | Download a file |
+| `POST` | `/api/upload?path=/directory` | Multipart upload |
+| `POST` | `/api/delete?path=/file` | Delete a file or directory |
+| `GET` / `POST` | `/api/clipboard` | Read or update shared clipboard text |
+| `GET` | `/api/swarm/manifest?path=/file` | Get the SHA-256 piece manifest |
+| `GET` | `/api/swarm/piece?path=/file&piece=0` | Read one verified-transfer piece |
+| `PROPFIND` | `/path` | WebDAV directory listing |
+| `MKCOL` | `/path` | WebDAV directory creation |
+| `PUT` | `/path/file` | WebDAV file upload |
 
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/status` | Server status, active port, session PIN, and mounted directory |
-| `GET` | `/api/browse?path=/` | Directory listing with file metadata, sizes, and timestamps |
-| `GET` | `/api/stream?path=/file` | High-speed file streaming with HTTP 206 range request support |
-| `POST` | `/api/upload` | Multipart file upload |
-| `POST` | `/api/delete` | Delete file or directory |
-| `GET` / `POST` | `/api/clipboard` | Read or sync LAN clipboard text |
+## Security model
 
-</details>
+LinkShare is intended for trusted local networks. The HTTP, FTP, WebDAV, and swarm endpoints use the current sharing session’s PIN. Traffic is local and cleartext by default; LinkShare does not currently provide TLS or remote-internet hardening. Stop sharing when it is no longer needed and avoid exposing the server port outside the local network.
 
----
+## Release process
 
-<div align="center">
+1. Update `versionName`, `versionCode`, and `packageVersion` together.
+2. Run Android and desktop compilation plus `git diff --check`.
+3. Build the Android debug or release artifact locally when possible.
+4. Commit and push the changes.
+5. Push a tag such as `v1.2.0`.
+6. GitHub Actions builds Android, Windows, macOS, and Linux artifacts and creates the release.
 
-Licensed under the [Apache License 2.0](LICENSE).
+The Android workflow requires these GitHub Actions secrets: `LINKSHARE_KEYSTORE_BASE64`, `LINKSHARE_KEYSTORE_PASSWORD`, `LINKSHARE_KEY_ALIAS`, and `LINKSHARE_KEY_PASSWORD`.
 
-</div>
+## License
+
+LinkShare is licensed under the [Apache License 2.0](LICENSE).

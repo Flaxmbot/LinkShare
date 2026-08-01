@@ -65,10 +65,12 @@ class AppSharingManager(private val context: Context) {
     /**
      * Extract an installed app into Downloads/LinkShare/Apps/<AppName>.apk for sharing
      */
-    suspend fun extractAppApk(app: InstalledAppInfo): FileItem? = withContext(Dispatchers.IO) {
+    suspend fun extractAppApk(app: InstalledAppInfo, destinationDirectory: String? = null): FileItem? = withContext(Dispatchers.IO) {
         try {
-            val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-            val targetDir = File(downloadsDir, "LinkShare/Apps")
+            val targetDir = if (!destinationDirectory.isNullOrBlank()) File(destinationDirectory) else {
+                val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+                File(downloadsDir, "LinkShare/Apps")
+            }
             if (!targetDir.exists()) targetDir.mkdirs()
 
             val safeName = app.appName.replace(Regex("[^a-zA-Z0-9._-]"), "_") + ".apk"

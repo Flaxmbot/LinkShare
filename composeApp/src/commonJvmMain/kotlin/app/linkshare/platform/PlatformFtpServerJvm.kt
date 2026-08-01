@@ -46,7 +46,7 @@ actual class PlatformFtpServer actual constructor(
                 launch {
                     while (isRunning) {
                         kotlinx.coroutines.delay(30000)
-                        if ((System.currentTimeMillis() - lastActivityTime) > timeoutMinutes * 60 * 1000L) {
+                        if (timeoutMinutes > 0 && (System.currentTimeMillis() - lastActivityTime) > timeoutMinutes * 60 * 1000L) {
                             Log.i(TAG, "FTP idle timeout. Stopping.")
                             stopServer(); break
                         }

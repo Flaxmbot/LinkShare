@@ -7,26 +7,33 @@ package app.linkshare.model
 class PieceBitset(val totalPieces: Int) {
     private val bits = BooleanArray(totalPieces)
 
+    @Synchronized
     fun hasPiece(index: Int): Boolean = index in 0 until totalPieces && bits[index]
 
+    @Synchronized
     fun setPiece(index: Int, owned: Boolean = true) {
         if (index in 0 until totalPieces) {
             bits[index] = owned
         }
     }
 
+    @Synchronized
     fun countOwned(): Int = bits.count { it }
 
+    @Synchronized
     fun isComplete(): Boolean = bits.all { it }
 
+    @Synchronized
     fun getOwnedPieceIndices(): List<Int> {
         return bits.indices.filter { bits[it] }
     }
 
+    @Synchronized
     fun getMissingPieceIndices(): List<Int> {
         return bits.indices.filter { !bits[it] }
     }
 
+    @Synchronized
     fun toHexString(): String {
         val byteCount = (totalPieces + 7) / 8
         val bytes = ByteArray(byteCount)

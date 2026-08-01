@@ -36,7 +36,8 @@ fun LocalServerScreen(
     onSharingStopped: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val primaryIp = remember { PlatformNetwork.getLocalIpAddress() }
+    val ipAddresses = remember { PlatformNetwork.getAllActiveIpAddresses() }
+    val primaryIp = ipAddresses.firstOrNull()?.ip ?: PlatformNetwork.getLocalIpAddress()
     var isRunning by remember { mutableStateOf(httpServer.isServerActive() || ftpServer.isServerActive()) }
     var menuExpanded by remember { mutableStateOf(false) }
     val selectedDirectory = currentDirectory.ifBlank { mountPoints.firstOrNull() ?: "/storage/emulated/0" }
@@ -53,7 +54,7 @@ fun LocalServerScreen(
             .verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(16.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(4.dp)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
@@ -92,7 +93,7 @@ fun LocalServerScreen(
             }
         }
 
-        Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(16.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(4.dp)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Shared folder", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Text("This is the folder WebDAV, HTTP and FTP can read and write.", color = NougatTextSecondary, fontSize = 12.sp)
@@ -100,7 +101,7 @@ fun LocalServerScreen(
                     OutlinedButton(
                         onClick = { menuExpanded = true },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(4.dp),
                         contentPadding = PaddingValues(14.dp)
                     ) {
                         Icon(Icons.Default.Folder, null, tint = NougatAmber)
@@ -127,10 +128,16 @@ fun LocalServerScreen(
             }
         }
 
-        Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(16.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(4.dp)) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Connect from another device", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                ConnectionRow("Web portal / WebDAV", "http://$primaryIp:8888/", Icons.Default.Language, onCopyAddress)
+                if (ipAddresses.isEmpty()) {
+                    Text("No local network address is available. Turn on Wi‑Fi or connect Ethernet.", color = NougatAmber, fontSize = 12.sp)
+                } else {
+                    ipAddresses.take(5).forEach { info ->
+                        ConnectionRow(info.label, "http://${info.ip}:8888/", Icons.Default.Language, onCopyAddress)
+                    }
+                }
                 ConnectionRow("FTP", "ftp://$primaryIp:2121", Icons.Default.Storage, onCopyAddress)
                 HorizontalDivider(color = NougatCardBorder)
                 Row(verticalAlignment = Alignment.CenterVertically) {

@@ -23,8 +23,10 @@ import java.util.Date
 import java.util.Locale
 import java.util.Base64
 import kotlin.random.Random
+import app.linkshare.core.swarm.SwarmManifestBuilder
 
 actual class PlatformHttpServer actual constructor(private val port: Int) {
+    actual var deviceName: String = "LinkShare-Device"
     private var serverSocket: ServerSocket? = null
     private var isRunning = false
     private val scope = CoroutineScope(Dispatchers.IO + Job())
@@ -151,7 +153,7 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
 
             when {
                 cleanPath == "/api/status" -> {
-                    val json = """{"status":"active","port":$port,"name":"LinkShare","requiresPin":true}"""
+                    val json = """{"status":"active","port":$port,"name":"${esc(deviceName)}","requiresPin":true}"""
                     sendResponse(output, "200 OK", "application/json; charset=utf-8", json.toByteArray())
                 }
                 cleanPath == "/api/clipboard" -> {
@@ -162,6 +164,45 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
                     } else {
                         sendResponse(output, "200 OK", "application/json; charset=utf-8",
                             """{"clipboard":"${esc(activeClipboardText)}"}""".toByteArray())
+                    }
+                }
+                cleanPath == "/api/swarm/manifest" -> {
+                    if (!targetFile.exists() || !targetFile.isFile) {
+                        sendResponse(output, "404 Not Found", "application/json", "{\"error\":\"file_not_found\"}".toByteArray())
+                    } else {
+                        val manifest = SwarmManifestBuilder.fromFile(targetFile)
+                        val hashes = manifest.pieceHashes.joinToString(",") { "\"${esc(it)}\"" }
+                        val json = """{"fileId":"${esc(manifest.fileId)}","fileName":"${esc(manifest.fileName)}","fileSizeBytes":${manifest.fileSizeBytes},"pieceSize":${manifest.pieceSize},"pieceCount":${manifest.pieceCount},"pieceHashes":[$hashes],"totalHash":"${esc(manifest.totalHash)}"}"""
+                        sendResponse(output, "200 OK", "application/json; charset=utf-8", json.toByteArray())
+                    }
+                }
+                cleanPath == "/api/swarm/piece" -> {
+                    if (!targetFile.exists() || !targetFile.isFile) {
+                        sendResponse(output, "404 Not Found", "application/json", "{\"error\":\"file_not_found\"}".toByteArray())
+                    } else {
+                        val pieceIndex = extractParam(rawPath, "piece")?.toIntOrNull()
+                        val manifest = SwarmManifestBuilder.fromFile(targetFile)
+                        if (pieceIndex == null || !manifest.isValidPieceIndex(pieceIndex)) {
+                            sendResponse(output, "416 Range Not Satisfiable", "application/json", "{\"error\":\"invalid_piece\"}".toByteArray())
+                        } else {
+                            val offset = pieceIndex.toLong() * manifest.pieceSize
+                            val expected = manifest.expectedPieceSize(pieceIndex)
+                            val piece = ByteArray(expected)
+                            java.io.RandomAccessFile(targetFile, "r").use { file ->
+                                file.seek(offset)
+                                var read = 0
+                                while (read < expected) {
+                                    val n = file.read(piece, read, expected - read)
+                                    if (n <= 0) break
+                                    read += n
+                                }
+                                if (read != expected) {
+                                    sendResponse(output, "409 Conflict", "application/json", "{\"error\":\"file_changed\"}".toByteArray())
+                                } else {
+                                    sendResponse(output, "200 OK", "application/octet-stream", piece)
+                                }
+                            }
+                        }
                     }
                 }
                 method == "PROPFIND" -> {
@@ -528,6 +569,18 @@ thead th:hover{color:var(--text)}
 .modal-body video,.modal-body audio{max-width:100%;max-height:75vh;outline:none}
 .modal-body img{max-width:100%;max-height:80vh;object-fit:contain}
 .modal-body iframe{width:100%;height:75vh;border:none}
+/* Persistent, minimizable media players */
+.media-dock{position:fixed;left:20px;bottom:20px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 36px rgba(0,0,0,.55);z-index:10001;display:none;overflow:hidden}
+.media-dock.open{display:block}
+.audio-dock{width:360px}
+.video-dock{width:min(760px,calc(100vw - 40px));left:50%;transform:translateX(-50%);bottom:24px}
+.media-dock.minimized .media-body{display:none}
+.media-head{display:flex;align-items:center;gap:8px;padding:9px 12px;color:var(--text);font-size:12px;font-weight:600}
+.media-head span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.media-head button{background:none;border:0;color:var(--text2);font-size:16px;cursor:pointer;padding:0 3px}
+.media-body{background:#000;padding:10px}
+.media-body audio{width:100%}
+.media-body video{display:block;width:100%;max-height:65vh;background:#000}
 /* Upload Toast Panel */
 .upload-toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;width:320px;box-shadow:0 8px 24px rgba(0,0,0,0.4);display:none;flex-direction:column;gap:8px;z-index:10000}
 .upload-toast.active{display:flex}
@@ -591,6 +644,15 @@ ${if(sorted.isEmpty()) "<div style='padding:3rem;text-align:center;color:var(--t
   </div>
 </div>
 
+<div class="media-dock audio-dock" id="audioDock">
+  <div class="media-head"><span id="audioTitle">Audio</span><button onclick="toggleDock('audioDock')" title="Minimize">−</button><button onclick="closeDock('audioDock','audioPlayer')" title="Close">×</button></div>
+  <div class="media-body"><audio id="audioPlayer" controls></audio></div>
+</div>
+<div class="media-dock video-dock" id="videoDock">
+  <div class="media-head"><span id="videoTitle">Video</span><button onclick="toggleDock('videoDock')" title="Minimize">−</button><button onclick="closeDock('videoDock','videoPlayer')" title="Close">×</button></div>
+  <div class="media-body"><video id="videoPlayer" controls playsinline></video></div>
+</div>
+
 <!-- Upload Progress Toast -->
 <div class="upload-toast" id="uploadToast">
   <div class="upload-toast-header"><span id="uploadTitle">Uploading…</span><span><span id="uploadPercent">0%</span><button class="upload-minimize" onclick="toggleUploadPanel()" title="Minimize">−</button></span></div>
@@ -611,13 +673,17 @@ function goUp(){var p=CUR.split('/').filter(Boolean);p.pop();nav('/'+p.join('/')
 function dl(enc){var a=document.createElement('a');a.href='/api/download?path='+enc+'&pin='+PIN;a.download='';a.click()}
 function playMedia(enc,name){
   var url='/api/stream?path='+enc+'&pin='+PIN;
-  document.getElementById('modalTitle').textContent=name;
   var isAudio=name.match(/\.(mp3|m4a|wav|flac|aac|ogg|opus|wma|amr|mid|midi)$/i);
-  document.getElementById('modalBody').innerHTML=isAudio?
-    '<audio controls autoplay style="width:100%;max-width:500px;margin:2rem"><source src="'+url+'"></audio>':
-    '<video controls autoplay style="max-width:100%;max-height:75vh"><source src="'+url+'"></video>';
-  document.getElementById('modal').classList.add('open');
+  closeDock(isAudio?'videoDock':'audioDock',isAudio?'videoPlayer':'audioPlayer');
+  var dock=isAudio?'audioDock':'videoDock';
+  var player=isAudio?document.getElementById('audioPlayer'):document.getElementById('videoPlayer');
+  document.getElementById(isAudio?'audioTitle':'videoTitle').textContent=name;
+  player.src=url; player.currentTime=0;
+  document.getElementById(dock).classList.add('open');
+  player.play().catch(function(){});
 }
+function toggleDock(id){document.getElementById(id).classList.toggle('minimized')}
+function closeDock(id,playerId){var dock=document.getElementById(id),player=document.getElementById(playerId);if(player){player.pause();player.removeAttribute('src');player.load()}dock.classList.remove('open','minimized')}
 function viewImg(enc,name){
   document.getElementById('modalTitle').textContent=name;
   document.getElementById('modalBody').innerHTML='<img src="/api/stream?path='+enc+'&pin='+PIN+'">';
@@ -728,7 +794,15 @@ function ctxDelete(){
   fetch('/api/delete?path='+ctxTarget.getAttribute('data-enc')+'&pin='+PIN,{method:'POST'}).then(function(){location.reload()});
 }
 // Keyboard
-document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal()});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){closeModal();closeDock('audioDock','audioPlayer');closeDock('videoDock','videoPlayer');return}
+  if(e.target&&['INPUT','TEXTAREA'].indexOf(e.target.tagName)>=0)return;
+  var player=document.getElementById('videoDock').classList.contains('open')?document.getElementById('videoPlayer'):document.getElementById('audioPlayer');
+  if(!player||!player.src)return;
+  if(e.key===' '){e.preventDefault();player.paused?player.play():player.pause()}
+  if(e.key==='ArrowLeft'){e.preventDefault();player.currentTime=Math.max(0,player.currentTime-5)}
+  if(e.key==='ArrowRight'){e.preventDefault();player.currentTime=Math.min(player.duration||Infinity,player.currentTime+5)}
+});
 // Drag & drop upload
 document.querySelector('.content').addEventListener('dragover',function(e){e.preventDefault()});
 document.querySelector('.content').addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files.length)uploadFiles(e.dataTransfer.files)});

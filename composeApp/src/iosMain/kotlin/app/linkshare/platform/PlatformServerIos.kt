@@ -1,5 +1,6 @@
 package app.linkshare.platform
 
+
 import app.linkshare.model.currentTimeMillis
 import kotlinx.coroutines.*
 import platform.posix.*
@@ -7,6 +8,7 @@ import kotlinx.cinterop.*
 import kotlin.random.Random
 
 actual class PlatformHttpServer actual constructor(private val port: Int) {
+    actual var deviceName: String = "LinkShare-Device"
     private var isRunning = false
     private var serverFd = -1
     private val scope = CoroutineScope(Dispatchers.Default + Job())

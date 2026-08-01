@@ -8,7 +8,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,11 +28,14 @@ fun SettingsScreen(settings: AppSettings, onSettingsChange: (AppSettings) -> Uni
         Text("Only the options that change how sharing works.", color = NougatTextSecondary, fontSize = 13.sp)
 
         SettingsCard {
-            SettingRow(
-                icon = Icons.Default.Smartphone,
-                title = "Device name",
-                subtitle = settings.deviceName,
-                trailing = { Icon(Icons.Default.ChevronRight, null, tint = NougatTextMuted) }
+            SettingRow(icon = Icons.Default.Smartphone, title = "Device name", subtitle = "Shown to nearby devices")
+            OutlinedTextField(
+                value = settings.deviceName,
+                onValueChange = { value -> onSettingsChange(settings.copy(deviceName = value.take(32))) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Device name") },
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = NougatTeal, cursorColor = NougatTeal)
             )
         }
 
@@ -91,7 +94,7 @@ fun SettingsScreen(settings: AppSettings, onSettingsChange: (AppSettings) -> Uni
 
 @Composable
 private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(16.dp)) {
+    Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(4.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }

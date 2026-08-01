@@ -30,6 +30,7 @@ fun RemoteExplorerScreen(
     peerName: String,
     peerIp: String,
     peerPort: Int = 8888,
+    initialPin: String? = null,
     onBackClicked: () -> Unit,
     onSaveFileToLocal: (pin: String, item: RemoteDeviceClient.RemoteFileItem) -> Unit,
     modifier: Modifier = Modifier
@@ -43,8 +44,8 @@ fun RemoteExplorerScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    var currentPin by remember { mutableStateOf("") }
-    var showPinDialog by remember { mutableStateOf(true) }
+    var currentPin by remember { mutableStateOf(initialPin.orEmpty()) }
+    var showPinDialog by remember { mutableStateOf(initialPin.isNullOrBlank()) }
 
     fun loadDirectory(path: String, pin: String = currentPin) {
         if (pin.isBlank()) {
@@ -64,6 +65,10 @@ fun RemoteExplorerScreen(
                 errorMessage = err.message ?: "Failed to connect to peer"
             }
         }
+    }
+
+    LaunchedEffect(initialPin) {
+        if (!initialPin.isNullOrBlank()) loadDirectory("/", initialPin)
     }
 
     if (showPinDialog) {

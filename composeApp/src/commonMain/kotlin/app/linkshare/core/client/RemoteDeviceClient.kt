@@ -6,6 +6,7 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import app.linkshare.model.SwarmManifest
 
 /**
  * Pure Kotlin client model for exploring remote LinkShare peers over LAN.
@@ -98,9 +99,54 @@ class RemoteDeviceClient {
         }
     }
 
+    suspend fun fetchSwarmManifest(
+        ip: String,
+        port: Int = 8888,
+        pin: String,
+        remotePath: String
+    ): Result<SwarmManifest> = withContextResult {
+        try {
+            val connection = (URL("http://$ip:$port/api/swarm/manifest?path=${encode(remotePath)}&pin=${encode(pin)}").openConnection() as HttpURLConnection).apply {
+                connectTimeout = 3000
+                readTimeout = 15000
+            }
+            if (connection.responseCode !in 200..299) return@withContextResult Result.failure(IllegalStateException("Manifest failed with HTTP ${connection.responseCode}"))
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val hashes = Regex("\\\"pieceHashes\\\":\\[(.*?)]").find(body)?.groupValues?.get(1)?.let { raw ->
+                Regex("\\\"(.*?)\\\"").findAll(raw).map { unescape(it.groupValues[1]) }.toList()
+            } ?: emptyList()
+            Result.success(SwarmManifest(
+                fileId = jsonString(body, "fileId") ?: error("Missing fileId"),
+                fileName = jsonString(body, "fileName") ?: File(remotePath).name,
+                fileSizeBytes = jsonLong(body, "fileSizeBytes"),
+                pieceSize = jsonLong(body, "pieceSize").toInt(),
+                pieceCount = jsonLong(body, "pieceCount").toInt(),
+                pieceHashes = hashes,
+                totalHash = jsonString(body, "totalHash") ?: error("Missing totalHash")
+            ))
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    suspend fun fetchSwarmPiece(
+        ip: String,
+        port: Int = 8888,
+        pin: String,
+        remotePath: String,
+        pieceIndex: Int
+    ): Result<ByteArray> = withContextResult {
+        try {
+            val url = URL("http://$ip:$port/api/swarm/piece?path=${encode(remotePath)}&piece=$pieceIndex&pin=${encode(pin)}")
+            val connection = (url.openConnection() as HttpURLConnection).apply { connectTimeout = 3000; readTimeout = 30000 }
+            if (connection.responseCode !in 200..299) return@withContextResult Result.failure(IllegalStateException("Piece failed with HTTP ${connection.responseCode}"))
+            Result.success(connection.inputStream.use { it.readBytes() })
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
     private fun encode(value: String): String = URLEncoder.encode(value, "UTF-8")
     private fun jsonString(json: String, key: String): String? =
         Regex("\\\"$key\\\":\\\"(.*?)\\\"").find(json)?.groupValues?.get(1)?.let(::unescape)
+    private fun jsonLong(json: String, key: String): Long =
+        Regex("\\\"$key\\\":(-?\\d+)").find(json)?.groupValues?.get(1)?.toLongOrNull() ?: error("Missing $key")
     private fun unescape(value: String): String = value.replace("\\\"", "\"").replace("\\\\", "\\")
 
     private suspend fun <T> withContextResult(block: suspend () -> T): T =

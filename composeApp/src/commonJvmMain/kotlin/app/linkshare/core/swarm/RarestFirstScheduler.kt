@@ -31,9 +31,27 @@ object RarestFirstScheduler {
 
         if (pieceCounts.isEmpty()) return null
 
-        val rarest = pieceCounts.minByOrNull { it.value.size } ?: return null
-        val selectedPeer = rarest.value.random()
+        val rarest = pieceCounts.entries
+            .sortedWith(compareBy<Map.Entry<Int, MutableList<String>>> { it.value.size }.thenBy { it.key })
+            .firstOrNull() ?: return null
+        val selectedPeer = rarest.value.sorted().first()
 
         return PieceRequest(pieceIndex = rarest.key, fromPeerId = selectedPeer)
+    }
+
+    fun selectNextPieces(
+        localBitset: PieceBitset,
+        peerBitsets: ConcurrentHashMap<String, PieceBitset>,
+        count: Int
+    ): List<PieceRequest> {
+        if (count <= 0) return emptyList()
+        val selected = mutableListOf<PieceRequest>()
+        val simulated = PieceBitset.fromHexString(localBitset.toHexString(), localBitset.totalPieces)
+        repeat(count) {
+            val request = selectNextPiece(simulated, peerBitsets) ?: return@repeat
+            selected += request
+            simulated.setPiece(request.pieceIndex)
+        }
+        return selected
     }
 }

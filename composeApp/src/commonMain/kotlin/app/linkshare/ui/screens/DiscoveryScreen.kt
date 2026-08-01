@@ -42,7 +42,7 @@ fun DiscoveryScreen(
         modifier = modifier.fillMaxSize().background(NougatBackground).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(12.dp)) {
+        Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(4.dp)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(42.dp).clip(CircleShape).background(NougatTeal.copy(alpha = .14f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Default.Wifi, null, tint = NougatTeal, modifier = Modifier.size(24.dp))
@@ -60,7 +60,7 @@ fun DiscoveryScreen(
         }
 
         if (!networkAvailable) {
-            Card(colors = CardDefaults.cardColors(containerColor = NougatAmber.copy(alpha = .10f)), shape = RoundedCornerShape(12.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = NougatAmber.copy(alpha = .10f)), shape = RoundedCornerShape(4.dp)) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.WifiOff, null, tint = NougatAmber)
                     Spacer(Modifier.width(10.dp))
@@ -94,7 +94,7 @@ fun DiscoveryScreen(
         } else {
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(discoveredPeers, key = { it.id }) { peer ->
-                    Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(12.dp)) {
+                    Card(colors = CardDefaults.cardColors(containerColor = NougatSurface), shape = RoundedCornerShape(4.dp)) {
                         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.size(40.dp).clip(CircleShape).background(NougatTeal.copy(alpha = .14f)), contentAlignment = Alignment.Center) {
                                 Icon(Icons.Default.Smartphone, null, tint = NougatTeal)
@@ -104,7 +104,7 @@ fun DiscoveryScreen(
                                 Text(peer.name, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(peer.ipAddress ?: "Local device", color = NougatTextMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                             }
-                            Button(onClick = { onBrowsePeerFilesClicked(peer) }, shape = RoundedCornerShape(10.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
+                            Button(onClick = { onBrowsePeerFilesClicked(peer) }, shape = RoundedCornerShape(4.dp), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
                                 Text("Open", fontSize = 12.sp)
                             }
                         }

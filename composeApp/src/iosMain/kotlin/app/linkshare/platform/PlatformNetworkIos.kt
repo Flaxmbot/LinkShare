@@ -1,5 +1,7 @@
 package app.linkshare.platform
 
+import app.linkshare.core.swarm.LinkCapabilities
+
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
@@ -46,5 +48,10 @@ actual object PlatformNetwork {
     actual fun getLocalIpAddress(): String {
         val all = getAllActiveIpAddresses()
         return all.firstOrNull()?.ip ?: "127.0.0.1"
+    }
+
+    actual fun getLinkCapabilities(): LinkCapabilities {
+        val names = getAllActiveIpAddresses().map { it.interfaceName }.distinct()
+        return LinkCapabilities(false, names.size, names)
     }
 }

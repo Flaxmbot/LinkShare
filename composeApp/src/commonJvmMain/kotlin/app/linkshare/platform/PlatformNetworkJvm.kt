@@ -1,5 +1,6 @@
 package app.linkshare.platform
 
+import app.linkshare.core.swarm.LinkCapabilities
 import java.net.Inet4Address
 import java.net.NetworkInterface
 
@@ -64,6 +65,15 @@ actual object PlatformNetwork {
             }
         } catch (_: Exception) {}
         return "127.0.0.1"
+    }
+
+    actual fun getLinkCapabilities(): LinkCapabilities {
+        val interfaces = getAllActiveIpAddresses().map { it.interfaceName }.distinct()
+        return LinkCapabilities(
+            supportsDualLink = interfaces.size >= 2,
+            linkCount = interfaces.size,
+            interfaceNames = interfaces
+        )
     }
 
     private fun isIgnoredInterface(name: String): Boolean {

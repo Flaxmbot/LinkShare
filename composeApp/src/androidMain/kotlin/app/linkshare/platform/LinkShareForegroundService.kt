@@ -8,12 +8,20 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.net.wifi.WifiManager
 import androidx.core.app.NotificationCompat
 
 /** Keeps the sharing process alive while the app is backgrounded or the screen is locked. */
 class LinkShareForegroundService : Service() {
+    private var wifiLock: WifiManager.WifiLock? = null
+
     override fun onCreate() {
         super.onCreate()
+        val wifi = applicationContext.getSystemService(WifiManager::class.java)
+        wifiLock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "LinkShare:sharing").apply {
+            setReferenceCounted(false)
+            acquire()
+        }
         val manager = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
@@ -42,6 +50,12 @@ class LinkShareForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onDestroy() {
+        wifiLock?.let { if (it.isHeld) it.release() }
+        wifiLock = null
+        super.onDestroy()
+    }
 
     companion object {
         private const val CHANNEL_ID = "linkshare_sharing"

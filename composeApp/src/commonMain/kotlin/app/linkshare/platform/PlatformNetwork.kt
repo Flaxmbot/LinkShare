@@ -1,5 +1,7 @@
 package app.linkshare.platform
 
+import app.linkshare.core.swarm.LinkCapabilities
+
 data class IpInfo(
     val label: String,
     val ip: String,
@@ -15,4 +17,7 @@ expect object PlatformNetwork {
 
     /** Returns the best single IP for server connections */
     fun getLocalIpAddress(): String
+
+    /** Reports whether two independently usable local interfaces are available. */
+    fun getLinkCapabilities(): LinkCapabilities
 }
