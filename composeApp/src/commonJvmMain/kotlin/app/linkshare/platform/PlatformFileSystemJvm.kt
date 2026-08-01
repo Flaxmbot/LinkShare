@@ -12,6 +12,21 @@ actual class PlatformFileSystem actual constructor() {
         return if (isAndroid) "/storage/emulated/0" else userHome
     }
 
+    actual fun getAvailableMountPoints(): List<String> {
+        val candidates = linkedSetOf<String>()
+        val androidStorage = File("/storage")
+        if (androidStorage.isDirectory) {
+            val internal = File("/storage/emulated/0")
+            if (internal.isDirectory) candidates.add(internal.absolutePath)
+            androidStorage.listFiles()?.filter { it.isDirectory && it.name != "emulated" && it.name != "self" }
+                ?.forEach { candidates.add(it.absolutePath) }
+        }
+        File.listRoots()?.filter { it.isDirectory && it.canRead() }?.forEach { candidates.add(it.absolutePath) }
+        val home = File(System.getProperty("user.home") ?: "")
+        if (home.isDirectory && home.canRead()) candidates.add(home.absolutePath)
+        return candidates.toList()
+    }
+
     actual fun listFiles(directoryPath: String): List<FileItem> {
         val dir = File(directoryPath)
         if (!dir.exists() || !dir.isDirectory) return emptyList()

@@ -12,7 +12,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.documentfile.provider.DocumentFile
 import app.linkshare.core.storage.AppSharingManager
 import app.linkshare.ui.App
 
@@ -33,9 +32,10 @@ class MainActivity : ComponentActivity() {
                     Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
                 )
             } catch (_: Exception) {}
-            val docFile = DocumentFile.fromTreeUri(this, uri)
-            val path = getPathFromUri(uri) ?: docFile?.uri?.path ?: "/storage/emulated/0"
-            if (path.isNotBlank()) {
+            // The HTTP/FTP servers require a real filesystem path. A content:// URI
+            // cannot be written with java.io.File, so never pass its URI path through.
+            val path = getPathFromUri(uri)
+            if (!path.isNullOrBlank() && java.io.File(path).isDirectory) {
                 currentDirectory = path
             }
         }
@@ -48,17 +48,8 @@ class MainActivity : ComponentActivity() {
         // Request ALL FILES ACCESS on Android 11+ (API 30+)
         requestAllFilesAccess()
 
-        val primaryStorage = "/storage/emulated/0"
-        if (java.io.File(primaryStorage).exists() && java.io.File(primaryStorage).canRead()) {
-            currentDirectory = primaryStorage
-        } else {
-            val defaultDir = java.io.File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                "LinkShare"
-            )
-            if (!defaultDir.exists()) defaultDir.mkdirs()
-            currentDirectory = defaultDir.absolutePath
-        }
+        val detected = fileSystem.getAvailableMountPoints().firstOrNull()
+        currentDirectory = detected ?: fileSystem.getDefaultShareDirectory()
 
         setContent {
             App(
@@ -70,7 +61,9 @@ class MainActivity : ComponentActivity() {
                 onCopyAddress = { text ->
                     val clipboard = getSystemService(CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                     clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("LinkShare", text))
-                }
+                },
+                onSharingStarted = { startSharingService() },
+                onSharingStopped = { stopSharingService() }
             )
         }
     }
@@ -78,7 +71,17 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         httpServer.stopServer()
         ftpServer.stopServer()
+        stopSharingService()
         super.onDestroy()
+    }
+
+    private fun startSharingService() {
+        val intent = Intent(this, LinkShareForegroundService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
+    }
+
+    private fun stopSharingService() {
+        stopService(Intent(this, LinkShareForegroundService::class.java))
     }
 
     private fun requestAllFilesAccess() {

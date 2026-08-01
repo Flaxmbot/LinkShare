@@ -21,17 +21,21 @@ object LanScanner {
     private const val TAG = "LanScanner"
 
     suspend fun scanLocalNetwork(onPeerDiscovered: (PeerDevice) -> Unit = {}): List<PeerDevice> = withContext(Dispatchers.IO) {
-        val localIp = PlatformNetwork.getLocalIpAddress()
-        if (localIp == "127.0.0.1" || !localIp.contains(".")) return@withContext emptyList()
+        val localAddresses = PlatformNetwork.getAllActiveIpAddresses()
+            .map { it.ip }
+            .filter { it != "127.0.0.1" && it.count { c -> c == '.' } == 3 }
+            .distinct()
+        if (localAddresses.isEmpty()) return@withContext emptyList()
 
-        val prefix = localIp.substringBeforeLast(".") + "."
-        val hostIpNumber = localIp.substringAfterLast(".").toIntOrNull() ?: 0
-
-        Log.d(TAG, "Starting fast 1-2s LAN subnet scan on $prefix* (local $localIp)")
+        val localIps = localAddresses.toSet()
+        val subnets = localAddresses.map { it.substringBeforeLast(".") + "." }.distinct()
+        Log.d(TAG, "Scanning ${subnets.size} local subnet(s): ${subnets.joinToString()}")
 
         val results = mutableListOf<PeerDevice>()
 
-        val jobs = (1..254).filter { it != hostIpNumber }.map { lastOctet ->
+        val jobs = subnets.flatMap { prefix -> (1..254).map { prefix to it } }
+            .filter { (prefix, lastOctet) -> "$prefix$lastOctet" !in localIps }
+            .map { (prefix, lastOctet) ->
             async {
                 val targetIp = "$prefix$lastOctet"
                 val peer = probePeer(targetIp, 8888)
@@ -65,15 +69,17 @@ object LanScanner {
             if (conn.responseCode == 200) {
                 val text = BufferedReader(InputStreamReader(conn.inputStream, Charsets.UTF_8)).use { it.readText() }
                 if (text.contains("\"status\":\"active\"")) {
-                    val peerName = "LinkShare Peer ($ip)"
+                    val peerName = Regex("\"name\":\"(.*?)\"").find(text)?.groupValues?.getOrNull(1)
+                        ?: "LinkShare Peer"
+                    val advertisedPort = Regex("\"port\":(\\d+)").find(text)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: port
                     return@withContext PeerDevice(
-                        id = "peer_$ip",
+                        id = "peer_$ip:$advertisedPort",
                         name = peerName,
                         ipAddress = ip,
-                        port = port,
+                        port = advertisedPort,
                         supportsF2DualLink = true,
                         supportsF3Swarm = true,
-                        ftpServerActive = true
+                        ftpServerActive = false
                     )
                 }
             }

@@ -37,7 +37,7 @@ fun TransferScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "FILE TRANSFER DASHBOARD",
+            text = "Transfers",
             fontWeight = FontWeight.Bold,
             fontSize = 12.sp,
             letterSpacing = 1.sp,
@@ -67,10 +67,10 @@ fun TransferScreen(
                             modifier = Modifier.size(48.dp)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("No Active File Transfer", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+                        Text("Nothing is moving right now", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            "Select files from Local Server or Browse a remote peer to initiate a transfer.",
+                            "Browse a nearby device to download files here.",
                             fontSize = 12.sp,
                             color = NougatTextMuted
                         )
@@ -93,7 +93,7 @@ fun TransferScreen(
                     ) {
                         CircularProgressIndicator(color = NougatTeal)
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Connecting to Peers...", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Connecting…", fontWeight = FontWeight.Bold, color = Color.White)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(transferState.fileName, fontSize = 12.sp, color = NougatTealLight, fontFamily = FontFamily.Monospace)
                     }
@@ -189,7 +189,7 @@ fun TransferScreen(
                     ) {
                         Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, tint = NougatGreen, modifier = Modifier.size(48.dp))
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text("Transfer Completed!", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 16.sp)
+                        Text("Transfer complete", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 16.sp)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(transferState.fileName, fontSize = 12.sp, color = NougatTealLight)
                         Spacer(modifier = Modifier.height(8.dp))

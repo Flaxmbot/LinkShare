@@ -21,6 +21,7 @@ import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.Base64
 import kotlin.random.Random
 
 actual class PlatformHttpServer actual constructor(private val port: Int) {
@@ -81,7 +82,7 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
         serverSocket = null
     }
 
-    actual fun isServerActive(): Boolean = isRunning && serverSocket?.isClosed == false
+    actual fun isServerActive(): Boolean = isRunning
 
     actual fun generateConnectionString(ipAddress: String): String =
         "http://$ipAddress:$port?pin=$sessionPin"
@@ -90,9 +91,8 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
         try {
             socket.soTimeout = 30000
             val input = socket.getInputStream()
-            val reader = BufferedReader(InputStreamReader(input, Charsets.UTF_8))
             val output = socket.getOutputStream()
-            val requestLine = reader.readLine() ?: return@withContext
+            val requestLine = readAsciiLine(input) ?: return@withContext
             val parts = requestLine.split(" ")
             if (parts.size < 2) return@withContext
             val method = parts[0].uppercase()
@@ -100,15 +100,17 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
             var rangeHeader: String? = null
             var contentType: String? = null
             var authHeader: String? = null
+            var contentLength = 0
 
             var line: String?
-            while (reader.readLine().also { line = it } != null) {
+            while (readAsciiLine(input).also { line = it } != null) {
                 if (line.isNullOrEmpty()) break
                 val lower = line!!.lowercase()
                 when {
                     lower.startsWith("range:") -> rangeHeader = line!!.substring(6).trim()
                     lower.startsWith("content-type:") -> contentType = line!!.substring(13).trim()
                     lower.startsWith("authorization:") -> authHeader = line!!.substring(14).trim()
+                    lower.startsWith("content-length:") -> contentLength = line!!.substring(15).trim().toIntOrNull() ?: 0
                 }
             }
 
@@ -126,11 +128,20 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
 
             val submittedPin = extractParam(rawPath, "pin")
             val isBearerValid = authHeader?.startsWith("Bearer ") == true && authHeader.substring(7).trim() == enterpriseToken
-            val hasValidPin = !true || (submittedPin != null && submittedPin == sessionPin) || isBearerValid
+            val isBasicValid = authHeader?.startsWith("Basic ") == true && try {
+                val decoded = String(Base64.getDecoder().decode(authHeader.substring(6).trim()), Charsets.UTF_8)
+                decoded.substringAfter(':', "") == sessionPin
+            } catch (_: Exception) { false }
+            val hasValidPin = cleanPath == "/api/status" ||
+                (submittedPin != null && submittedPin == sessionPin) || isBearerValid || isBasicValid
 
             if (!hasValidPin) {
-                val html = buildLoginPage(submittedPin != null && submittedPin != sessionPin)
-                sendResponse(output, "200 OK", "text/html; charset=utf-8", html.toByteArray(Charsets.UTF_8))
+                if (cleanPath.startsWith("/api/")) {
+                    sendResponse(output, "401 Unauthorized", "application/json; charset=utf-8", "{\"error\":\"invalid_pin\"}".toByteArray())
+                } else {
+                    val html = buildLoginPage(submittedPin != null && submittedPin != sessionPin)
+                    sendResponse(output, "200 OK", "text/html; charset=utf-8", html.toByteArray(Charsets.UTF_8))
+                }
                 socket.close(); return@withContext
             }
 
@@ -140,12 +151,12 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
 
             when {
                 cleanPath == "/api/status" -> {
-                    val json = """{"status":"active","port":$port,"pin":"$sessionPin","token":"$enterpriseToken","dir":"${esc(rootDir.absolutePath)}"}"""
+                    val json = """{"status":"active","port":$port,"name":"LinkShare","requiresPin":true}"""
                     sendResponse(output, "200 OK", "application/json; charset=utf-8", json.toByteArray())
                 }
                 cleanPath == "/api/clipboard" -> {
                     if (method == "POST") {
-                        val body = reader.readText()
+                        val body = input.readNBytes(contentLength).toString(Charsets.UTF_8)
                         if (body.isNotBlank()) activeClipboardText = body.trim()
                         sendResponse(output, "200 OK", "application/json", """{"status":"updated"}""".toByteArray())
                     } else {
@@ -161,6 +172,24 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
                 method == "MKCOL" -> {
                     if (!targetFile.exists()) { targetFile.mkdirs(); sendResponse(output, "201 Created", "text/plain", "Created".toByteArray()) }
                     else sendResponse(output, "405 Method Not Allowed", "text/plain", "Exists".toByteArray())
+                }
+                method == "PUT" -> {
+                    if (targetFile == rootDir || !targetFile.canonicalPath.startsWith(rootDir.canonicalPath)) {
+                        sendResponse(output, "403 Forbidden", "text/plain", "Invalid destination".toByteArray())
+                    } else {
+                        targetFile.parentFile?.mkdirs()
+                        FileOutputStream(targetFile).use { outputFile ->
+                            var remaining = contentLength.toLong()
+                            val buffer = ByteArray(64 * 1024)
+                            while (remaining > 0) {
+                                val read = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
+                                if (read <= 0) break
+                                outputFile.write(buffer, 0, read)
+                                remaining -= read
+                            }
+                        }
+                        sendResponse(output, "201 Created", "application/json; charset=utf-8", "{\"status\":\"saved\",\"path\":\"${esc(relPath(rootDir, targetFile))}\"}".toByteArray())
+                    }
                 }
                 cleanPath == "/api/browse" -> {
                     val dir = if (targetFile.exists() && targetFile.isDirectory) targetFile else rootDir
@@ -186,7 +215,7 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
                 }
                 method == "POST" && (cleanPath == "/api/upload" || cleanPath.startsWith("/upload")) -> {
                     val dir = if (targetFile.exists() && targetFile.isDirectory) targetFile else rootDir
-                    val count = handleUpload(contentType, dir, input)
+                    val count = handleUpload(contentType, dir, input, contentLength)
                     val targetRel = relPath(rootDir, dir)
                     sendResponse(output, "200 OK", "application/json; charset=utf-8",
                         """{"status":"success","count":$count,"path":"${esc(targetRel)}"}""".toByteArray())
@@ -208,13 +237,21 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
 
     private fun streamFile(output: OutputStream, file: File, mimeType: String, rangeHeader: String?, forceDownload: Boolean) {
         val total = file.length()
+        if (total <= 0L) { sendResponse(output, "204 No Content", mimeType, ByteArray(0)); return }
         var start = 0L; var end = total - 1
         val isRange = rangeHeader?.startsWith("bytes=") == true
         if (isRange) {
             val rv = rangeHeader!!.substring(6).split("-")
             start = rv[0].toLongOrNull() ?: 0L
-            if (rv.size > 1 && rv[1].isNotEmpty()) end = rv[1].toLongOrNull() ?: (total - 1)
+            if (rv[0].isEmpty()) {
+                val suffix = rv.getOrNull(1)?.toLongOrNull() ?: 0L
+                start = (total - suffix).coerceAtLeast(0L)
+            } else {
+                start = rv[0].toLongOrNull() ?: 0L
+                if (rv.size > 1 && rv[1].isNotEmpty()) end = rv[1].toLongOrNull() ?: (total - 1)
+            }
         }
+        end = end.coerceAtMost(total - 1)
         if (start >= total) { sendResponse(output, "416 Range Not Satisfiable", "text/plain", "Range error".toByteArray()); return }
         val len = (end - start) + 1
         val status = if (isRange) "206 Partial Content" else "200 OK"
@@ -241,15 +278,25 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
         output.write(h.toByteArray()); if (body.isNotEmpty()) output.write(body); output.flush()
     }
 
-    private fun handleUpload(contentType: String?, targetDir: File, input: InputStream): Int {
+    private fun readAsciiLine(input: InputStream): String? {
+        val bytes = ByteArrayOutputStream()
+        while (true) {
+            val value = input.read()
+            if (value < 0) return if (bytes.size() == 0) null else bytes.toString(Charsets.ISO_8859_1.name())
+            if (value == '\n'.code) break
+            if (value != '\r'.code) bytes.write(value)
+            if (bytes.size() > 16 * 1024) return null
+        }
+        return bytes.toString(Charsets.ISO_8859_1.name())
+    }
+
+    private fun handleUpload(contentType: String?, targetDir: File, input: InputStream, contentLength: Int): Int {
         if (contentType == null || !contentType.contains("boundary=")) return 0
         val boundary = "--" + contentType.substringAfter("boundary=").trim()
         val boundaryBytes = boundary.toByteArray(Charsets.ISO_8859_1)
         var count = 0
         try {
-            val buf = ByteArray(64 * 1024); val bos = ByteArrayOutputStream()
-            var r: Int; while (input.read(buf).also { r = it } != -1) bos.write(buf, 0, r)
-            val body = bos.toByteArray(); var pos = 0
+            val body = input.readNBytes(contentLength); var pos = 0
             while (pos < body.size) {
                 val bi = indexOf(body, pos, body.size - pos, boundaryBytes); if (bi < 0) break
                 val hs = bi + boundaryBytes.size; if (hs >= body.size - 2) break
@@ -484,7 +531,10 @@ thead th:hover{color:var(--text)}
 /* Upload Toast Panel */
 .upload-toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;width:320px;box-shadow:0 8px 24px rgba(0,0,0,0.4);display:none;flex-direction:column;gap:8px;z-index:10000}
 .upload-toast.active{display:flex}
+.upload-toast.minimized{width:auto;padding:8px 10px}
+.upload-toast.minimized .upload-toast-body{display:none}
 .upload-toast-header{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:12px;color:var(--text)}
+.upload-minimize{background:none;border:0;color:var(--text2);cursor:pointer;font-size:16px;padding:0 0 0 12px}
 .upload-toast-file{font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .upload-progress-track{width:100%;height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
 .upload-progress-fill{height:100%;background:var(--accent);width:0%;transition:width 0.1s}
@@ -543,10 +593,12 @@ ${if(sorted.isEmpty()) "<div style='padding:3rem;text-align:center;color:var(--t
 
 <!-- Upload Progress Toast -->
 <div class="upload-toast" id="uploadToast">
-  <div class="upload-toast-header"><span>Uploading to LinkShare...</span><span id="uploadPercent">0%</span></div>
-  <div class="upload-toast-file" id="uploadFileName">Preparing files...</div>
-  <div class="upload-progress-track"><div class="upload-progress-fill" id="uploadProgressFill"></div></div>
-  <div class="upload-toast-stats"><span id="uploadTransferred">0 MB</span><span id="uploadSpeed">0 MB/s</span></div>
+  <div class="upload-toast-header"><span id="uploadTitle">Uploading…</span><span><span id="uploadPercent">0%</span><button class="upload-minimize" onclick="toggleUploadPanel()" title="Minimize">−</button></span></div>
+  <div class="upload-toast-body">
+    <div class="upload-toast-file" id="uploadFileName">Preparing files...</div>
+    <div class="upload-progress-track"><div class="upload-progress-fill" id="uploadProgressFill"></div></div>
+    <div class="upload-toast-stats"><span id="uploadTransferred">0 MB</span><span id="uploadSpeed">0 MB/s</span></div>
+  </div>
 </div>
 
 <script>
@@ -577,6 +629,7 @@ function viewDoc(enc,name){
   document.getElementById('modal').classList.add('open');
 }
 function closeModal(){document.getElementById('modalBody').innerHTML='';document.getElementById('modal').classList.remove('open')}
+function toggleUploadPanel(){document.getElementById('uploadToast').classList.toggle('minimized')}
 function uploadFiles(files){
   if(!files||!files.length)return;
   var toast=document.getElementById('uploadToast');
@@ -585,8 +638,11 @@ function uploadFiles(files){
   var fileLabel=document.getElementById('uploadFileName');
   var transferredLabel=document.getElementById('uploadTransferred');
   var speedLabel=document.getElementById('uploadSpeed');
+  var title=document.getElementById('uploadTitle');
   
   toast.classList.add('active');
+  toast.classList.remove('minimized');
+  title.textContent='Uploading…';
   fileLabel.textContent=files.length==1?files[0].name:files.length+' files';
 
   var fd=new FormData();for(var i=0;i<files.length;i++)fd.append('f'+i,files[i]);
@@ -605,12 +661,18 @@ function uploadFiles(files){
     }
   };
   xhr.onload=function(){
-    toast.classList.remove('active');
-    location.reload();
+    if(xhr.status>=200&&xhr.status<300){
+      title.textContent='Upload complete';
+      percent.textContent='Done';
+      setTimeout(function(){toast.classList.remove('active');location.reload()},700);
+    }else{
+      title.textContent='Upload failed';
+      toast.classList.remove('minimized');
+    }
   };
   xhr.onerror=function(){
-    toast.classList.remove('active');
-    alert('Upload failed.');
+    title.textContent='Upload failed';
+    toast.classList.remove('minimized');
   };
   xhr.open('POST','/api/upload?path='+encodeURIComponent(CUR)+'&pin='+PIN);
   xhr.send(fd);

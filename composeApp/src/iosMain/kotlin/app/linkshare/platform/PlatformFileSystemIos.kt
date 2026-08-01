@@ -18,6 +18,8 @@ actual class PlatformFileSystem actual constructor() {
         return (paths.firstOrNull() as? NSURL)?.path ?: "/tmp"
     }
 
+    actual fun getAvailableMountPoints(): List<String> = listOf(getDefaultShareDirectory())
+
     actual fun listFiles(directoryPath: String): List<FileItem> {
         val contents = fm.contentsOfDirectoryAtPath(directoryPath, null) ?: return emptyList()
         return (0 until contents.count.toInt()).mapNotNull { i ->
