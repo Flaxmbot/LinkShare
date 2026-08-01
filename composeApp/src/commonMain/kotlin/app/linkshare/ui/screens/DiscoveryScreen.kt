@@ -325,13 +325,13 @@ fun PeerListItem(
 
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             if (peer.supportsF2DualLink) {
-                                FeatureChip(icon = Icons.Default.FlashOn, label = "⚡ Direct Speed", color = NougatGreen)
+                                FeatureChip(icon = Icons.Default.FlashOn, label = "Direct Speed", color = NougatGreen)
                             }
                             if (peer.supportsF3Swarm) {
-                                FeatureChip(icon = Icons.Default.Groups, label = "👥 Group Share", color = NougatPurple)
+                                FeatureChip(icon = Icons.Default.Groups, label = "Group Share", color = NougatPurple)
                             }
                             if (peer.ftpServerActive) {
-                                FeatureChip(icon = Icons.Default.FolderShared, label = "📁 File Server", color = NougatTealLight)
+                                FeatureChip(icon = Icons.Default.FolderShared, label = "File Server", color = NougatTealLight)
                             }
                         }
                     }

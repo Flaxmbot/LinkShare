@@ -406,13 +406,14 @@ button:hover{background:#1a86d9}
                 "py" -> "Python file"; "java","kt" -> "Source file"
                 else -> "${ext.uppercase()} file"
             }
-            val icon = if (isDir) "📁" else when(ext) {
-                "mp4","mkv","webm","avi","mov","3gp","flv","m4v" -> "🎬"
-                "m4a","mp3","wav","flac","aac","ogg","opus" -> "🎵"
-                "jpg","jpeg","png","webp","gif","svg","bmp","heic" -> "🖼"
-                "pdf" -> "📕"; "zip","rar","7z","tar","gz" -> "📦"
-                "apk" -> "📱"; "doc","docx" -> "📘"; "xls","xlsx" -> "📗"
-                else -> "📄"
+            val icon = if (isDir) """<svg width="16" height="16" viewBox="0 0 24 24" fill="#FFB300"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>""" else when(ext) {
+                "mp4","mkv","webm","avi","mov","3gp","flv","m4v" -> """<svg width="16" height="16" viewBox="0 0 24 24" fill="#AB47BC"><path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/></svg>"""
+                "m4a","mp3","wav","flac","aac","ogg","opus" -> """<svg width="16" height="16" viewBox="0 0 24 24" fill="#FFB300"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>"""
+                "jpg","jpeg","png","webp","gif","svg","bmp","heic" -> """<svg width="16" height="16" viewBox="0 0 24 24" fill="#4CAF50"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>"""
+                "pdf" -> """<svg width="16" height="16" viewBox="0 0 24 24" fill="#EF5350"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1z"/></svg>"""
+                "zip","rar","7z","tar","gz" -> """<svg width="16" height="16" viewBox="0 0 24 24" fill="#FFB300"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 10h-2v-2h2v2zm0-4h-2v-2h2v2z"/></svg>"""
+                "apk" -> """<svg width="16" height="16" viewBox="0 0 24 24" fill="#009688"><path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/></svg>"""
+                else -> """<svg width="16" height="16" viewBox="0 0 24 24" fill="#4DB6AC"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>"""
             }
             val isMedia = !isDir && ext in listOf("mp4","mkv","webm","avi","mov","3gp","flv","m4v","ts","wmv","m4a","mp3","wav","flac","aac","ogg","opus","wma","amr","mid","midi")
             val isImg = !isDir && ext in listOf("jpg","jpeg","png","webp","gif","svg","bmp","heic","ico","tiff","tif")
@@ -523,13 +524,13 @@ ${if(sorted.isEmpty()) "<div style='padding:3rem;text-align:center;color:var(--t
 
 <!-- Context Menu -->
 <div class="ctx-menu" id="ctx">
-  <div class="ctx-item" id="ctx-open" onclick="ctxOpen()">📂 Open</div>
-  <div class="ctx-item" id="ctx-stream" onclick="ctxStream()">▶ Play / View</div>
+  <div class="ctx-item" id="ctx-open" onclick="ctxOpen()">Open</div>
+  <div class="ctx-item" id="ctx-stream" onclick="ctxStream()">Play / View</div>
   <div class="ctx-sep"></div>
-  <div class="ctx-item" onclick="ctxDownload()">⬇ Download</div>
-  <div class="ctx-item" onclick="ctxCopyLink()">🔗 Copy link</div>
+  <div class="ctx-item" onclick="ctxDownload()">Download</div>
+  <div class="ctx-item" onclick="ctxCopyLink()">Copy link</div>
   <div class="ctx-sep"></div>
-  <div class="ctx-item danger" onclick="ctxDelete()">🗑 Delete</div>
+  <div class="ctx-item danger" onclick="ctxDelete()">Delete</div>
 </div>
 
 <!-- Media Modal -->

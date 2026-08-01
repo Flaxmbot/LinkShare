@@ -216,14 +216,14 @@ fun LocalServerScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     PresetChip(
-                        label = "⚡ Internal Storage",
+                        label = "Internal Storage",
                         path = "/storage/emulated/0",
                         currentDir = currentDirectory,
                         onClick = { onSetMountedDirectory("/storage/emulated/0") },
                         modifier = Modifier.weight(1f)
                     )
                     PresetChip(
-                        label = "📁 Downloads",
+                        label = "Downloads",
                         path = "/storage/emulated/0/Download",
                         currentDir = currentDirectory,
                         onClick = { onSetMountedDirectory("/storage/emulated/0/Download") },
@@ -238,7 +238,7 @@ fun LocalServerScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     PresetChip(
-                        label = "📷 DCIM / Photos",
+                        label = "DCIM / Photos",
                         path = "/storage/emulated/0/DCIM",
                         currentDir = currentDirectory,
                         onClick = { onSetMountedDirectory("/storage/emulated/0/DCIM") },
