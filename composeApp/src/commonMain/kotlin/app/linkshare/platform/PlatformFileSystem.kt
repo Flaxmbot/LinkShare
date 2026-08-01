@@ -9,6 +9,9 @@ expect class PlatformFileSystem() {
     /** Returns the default directory to share files from */
     fun getDefaultShareDirectory(): String
 
+    /** Returns real, accessible storage roots such as internal storage, drives, and SD cards. */
+    fun getAvailableMountPoints(): List<String>
+
     /** List files in the given directory path */
     fun listFiles(directoryPath: String): List<FileItem>
 

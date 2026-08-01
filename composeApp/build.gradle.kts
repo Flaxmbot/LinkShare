@@ -51,6 +51,9 @@ kotlin {
         // Intermediate source set for JVM code shared by Android and Desktop
         val commonJvmMain by creating {
             dependsOn(commonMain)
+            dependencies {
+                implementation("com.google.zxing:core:3.5.3")
+            }
         }
 
         val androidMain by getting {
@@ -92,7 +95,7 @@ android {
         minSdk = 26
         targetSdk = 34
         versionCode = 1
-        versionName = "1.0.0"
+    versionName = "1.1.0"
     }
 
     signingConfigs {
@@ -132,7 +135,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "LinkShare"
-            packageVersion = "1.0.0"
+            packageVersion = "1.1.0"
             description = "High-Performance LAN & Wi-Fi Direct P2P File Sharing"
             vendor = "LinkShare"
 

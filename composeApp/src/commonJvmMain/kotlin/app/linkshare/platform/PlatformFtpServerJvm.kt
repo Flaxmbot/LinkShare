@@ -96,17 +96,20 @@ actual class PlatformFtpServer actual constructor(
             val root = sharedDirectory ?: File(System.getProperty("user.home") ?: "/")
             if (currentDir == "/" || currentDir.isBlank()) return root
             val resolved = File(root, currentDir.trimStart('/'))
-            return if (resolved.exists() && resolved.isDirectory) resolved else root
+            return if (resolved.canonicalPath.startsWith(root.canonicalPath) && resolved.exists() && resolved.isDirectory) resolved else root
         }
 
         fun resolve(arg: String): File {
             val base = targetDir()
             val root = sharedDirectory ?: File(System.getProperty("user.home") ?: "/")
-            return when {
+            val candidate = when {
                 arg.startsWith("/") -> File(root, arg.trimStart('/'))
                 arg.isNotEmpty() -> File(base, arg)
                 else -> base
             }
+            return try {
+                if (candidate.canonicalPath.startsWith(root.canonicalPath)) candidate else root
+            } catch (_: Exception) { root }
         }
 
         fun dataSocket(): Socket? = try {
@@ -154,11 +157,11 @@ actual class PlatformFtpServer actual constructor(
                         send("250 Directory changed to $currentDir")
                     }
                     "MKD", "XMKD" -> {
-                        val d = File(sharedDirectory, File(arg).name)
+                        val d = resolve(arg)
                         send(if (d.mkdirs() || d.exists()) "257 \"/${d.name}\" created" else "550 Could not create")
                     }
                     "RMD", "XRMD" -> {
-                        val d = File(sharedDirectory, File(arg).name)
+                        val d = resolve(arg)
                         send(if (d.exists() && d.isDirectory && d.delete()) "250 Removed" else "550 Could not remove")
                     }
                     "SITE" -> send("200 SITE acknowledged")
@@ -244,7 +247,7 @@ actual class PlatformFtpServer actual constructor(
                         } else send("550 File not found")
                     }
                     "STOR" -> {
-                        val dest = File(sharedDirectory, File(arg).name)
+                        val dest = resolve(arg)
                         send("150 Ready to receive: ${dest.name}")
                         val ds = dataSocket()
                         if (ds != null) {
@@ -253,7 +256,7 @@ actual class PlatformFtpServer actual constructor(
                         } else send("425 Can't open data connection")
                     }
                     "APPE" -> {
-                        val dest = File(sharedDirectory, File(arg).name)
+                        val dest = resolve(arg)
                         send("150 Ready to append: ${dest.name}")
                         val ds = dataSocket()
                         if (ds != null) {

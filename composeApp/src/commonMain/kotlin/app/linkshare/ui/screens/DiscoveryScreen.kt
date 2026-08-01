@@ -159,13 +159,13 @@ fun DiscoveryScreen(
 
                     Column {
                         Text(
-                            text = "LAN PEER DISCOVERY",
+                        text = "Nearby devices",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = Color.White
                         )
                         Text(
-                            text = "Your IP: $localIp",
+                            text = "Connected as $localIp",
                             fontFamily = FontFamily.Monospace,
                             fontSize = 11.sp,
                             color = NougatTealLight
@@ -193,7 +193,7 @@ fun DiscoveryScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "NEARBY DEVICES (${discoveredPeers.size})",
+                text = "Devices on this network (${discoveredPeers.size})",
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
                 letterSpacing = 1.sp,
@@ -206,7 +206,7 @@ fun DiscoveryScreen(
             ) {
                 Icon(imageVector = Icons.Default.Language, contentDescription = null, tint = NougatTeal, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("CONNECT BY IP", color = NougatTeal, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text("Add by address", color = NougatTeal, fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
         }
 
@@ -227,7 +227,7 @@ fun DiscoveryScreen(
                         RadarPulseAnimation()
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Scanning local network for devices...",
+                            text = "Looking for LinkShare devices…",
                             fontWeight = FontWeight.SemiBold,
                             color = NougatTealLight,
                             fontSize = 13.sp
@@ -351,7 +351,7 @@ fun PeerListItem(
                 ) {
                     Icon(imageVector = Icons.Default.FolderOpen, contentDescription = null, tint = NougatTeal, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "BROWSE FILES", color = NougatTeal, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text(text = "Browse", color = NougatTeal, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
 
                 Spacer(modifier = Modifier.width(8.dp))
@@ -363,7 +363,7 @@ fun PeerListItem(
                     modifier = Modifier.height(36.dp)
                 ) {
                     Text(
-                        text = "SEND FILES",
+                        text = "Send",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
