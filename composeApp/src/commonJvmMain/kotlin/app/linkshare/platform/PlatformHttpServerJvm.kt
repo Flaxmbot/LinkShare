@@ -16,6 +16,8 @@ import java.io.OutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.io.DataInputStream
+import java.io.DataOutputStream
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
@@ -28,6 +30,7 @@ import app.linkshare.core.swarm.SwarmManifestBuilder
 actual class PlatformHttpServer actual constructor(private val port: Int) {
     actual var deviceName: String = "LinkShare-Device"
     private var serverSocket: ServerSocket? = null
+    private var dualLinkSocket: ServerSocket? = null
     private var isRunning = false
     private val scope = CoroutineScope(Dispatchers.IO + Job())
 
@@ -76,18 +79,73 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
                 stopServer()
             }
         }
+        scope.launch { runDualLinkServer(dir) }
     }
 
     actual fun stopServer() {
         isRunning = false
         try { serverSocket?.close() } catch (_: Exception) {}
         serverSocket = null
+        try { dualLinkSocket?.close() } catch (_: Exception) {}
+        dualLinkSocket = null
     }
 
     actual fun isServerActive(): Boolean = isRunning
 
     actual fun generateConnectionString(ipAddress: String): String =
         "http://$ipAddress:$port?pin=$sessionPin"
+
+    private suspend fun runDualLinkServer(rootDir: File) = withContext(Dispatchers.IO) {
+        try {
+            dualLinkSocket = ServerSocket(port + 1, 50, InetAddress.getByName("0.0.0.0"))
+            while (isRunning) {
+                val socket = dualLinkSocket?.accept() ?: break
+                scope.launch { handleDualLinkSocket(socket, rootDir) }
+            }
+        } catch (error: Exception) {
+            if (isRunning) Log.d("HttpServer", "Dual-link server unavailable: ${error.message}")
+        } finally {
+            try { dualLinkSocket?.close() } catch (_: Exception) {}
+            dualLinkSocket = null
+        }
+    }
+
+    private suspend fun handleDualLinkSocket(socket: Socket, rootDir: File) = withContext(Dispatchers.IO) {
+        try {
+            socket.tcpNoDelay = true
+            socket.keepAlive = true
+            val input = DataInputStream(socket.getInputStream().buffered())
+            val output = DataOutputStream(socket.getOutputStream().buffered())
+            val magic = input.readUTF()
+            val pin = input.readUTF()
+            val relativePath = input.readUTF()
+            val file = resolveFile(relativePath, rootDir)
+            val accepted = magic == "LSDB1" && pin == sessionPin && file.isFile && file.canonicalPath.startsWith(rootDir.canonicalPath)
+            output.writeBoolean(accepted)
+            output.flush()
+            if (!accepted) return@withContext
+            val manifest = SwarmManifestBuilder.fromFile(file)
+            java.io.RandomAccessFile(file, "r").use { random ->
+                while (isRunning) {
+                    val index = try { input.readInt() } catch (_: Exception) { break }
+                    if (!manifest.isValidPieceIndex(index)) break
+                    val size = manifest.expectedPieceSize(index)
+                    val data = ByteArray(size)
+                    synchronized(random) {
+                        random.seek(index.toLong() * manifest.pieceSize)
+                        random.readFully(data)
+                    }
+                    output.writeInt(index)
+                    output.writeInt(data.size)
+                    output.write(data)
+                    output.flush()
+                }
+            }
+        } catch (_: Exception) {
+        } finally {
+            try { socket.close() } catch (_: Exception) {}
+        }
+    }
 
     private suspend fun handleHttpRequest(socket: Socket) = withContext(Dispatchers.IO) {
         try {
@@ -153,7 +211,7 @@ actual class PlatformHttpServer actual constructor(private val port: Int) {
 
             when {
                 cleanPath == "/api/status" -> {
-                    val json = """{"status":"active","port":$port,"name":"${esc(deviceName)}","requiresPin":true}"""
+                    val json = """{"status":"active","port":$port,"dualLinkPort":${port + 1},"supportsDualLink":true,"name":"${esc(deviceName)}","requiresPin":true}"""
                     sendResponse(output, "200 OK", "application/json; charset=utf-8", json.toByteArray())
                 }
                 cleanPath == "/api/clipboard" -> {

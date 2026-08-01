@@ -26,6 +26,10 @@ actual class SwarmTransferCoordinator actual constructor(
         if (peers.isEmpty()) return@withContext Result.failure(IllegalArgumentException("No transfer peers"))
         try {
             val first = peers.first()
+            if (peers.size == 1 && PlatformNetwork.getLinkCapabilities().supportsDualLink) {
+                val bonded = DualLinkTransfer(client).download(first, pin, remotePath, destinationDirectory)
+                if (bonded.isSuccess) return@withContext bonded
+            }
             val manifest = client.fetchSwarmManifest(first.ipAddress ?: return@withContext Result.failure(IllegalArgumentException("Peer has no address")), first.port, pin, remotePath).getOrThrow()
             val directory = File(destinationDirectory)
             if (!directory.exists() && !directory.mkdirs()) error("Unable to create destination folder")

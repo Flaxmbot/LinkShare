@@ -26,7 +26,7 @@ The repository also contains iOS source sets, but this repository does not curre
 ## Important limitations
 
 - Android does not allow an app to silently join arbitrary Wi-Fi networks on modern versions. The receiver may need to approve or complete the connection in system UI.
-- Dual-link detection and scheduling are implemented, but LinkShare does not yet bond two interfaces into one kernel-level connection. The current transport uses separate HTTP requests and requires real multi-interface testing before claiming a speed improvement.
+- Experimental dual-link transport is implemented on JVM targets: two interface-bound TCP lanes share verified pieces on `server port + 1`. It is not kernel-level bonding, and throughput gains still require physical multi-interface testing; if either lane cannot connect, transfers fall back to the normal swarm/HTTP path.
 - Swarm transfer currently exposes verified piece transport and a JVM coordinator. It is not a complete BitTorrent-compatible protocol and does not interoperate with `.torrent` clients.
 - Android APK installation still requires Android’s package-installer approval and may require enabling installation from this source.
 - Windows firewall rules are outside the app. If inbound traffic is blocked, allow the selected server ports in Windows Firewall.
