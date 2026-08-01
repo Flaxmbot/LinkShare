@@ -480,9 +480,14 @@ thead th:hover{color:var(--text)}
 .modal-body video,.modal-body audio{max-width:100%;max-height:75vh;outline:none}
 .modal-body img{max-width:100%;max-height:80vh;object-fit:contain}
 .modal-body iframe{width:100%;height:75vh;border:none}
-/* Upload area */
-.upload-zone{border:2px dashed var(--border);border-radius:8px;padding:2rem;text-align:center;margin:8px;color:var(--text2);cursor:pointer;transition:all .2s}
-.upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);color:var(--accent);background:rgba(0,120,212,.05)}
+/* Upload Toast Panel */
+.upload-toast{position:fixed;bottom:20px;right:20px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;width:320px;box-shadow:0 8px 24px rgba(0,0,0,0.4);display:none;flex-direction:column;gap:8px;z-index:10000}
+.upload-toast.active{display:flex}
+.upload-toast-header{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:12px;color:var(--text)}
+.upload-toast-file{font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upload-progress-track{width:100%;height:6px;background:var(--bg);border-radius:3px;overflow:hidden}
+.upload-progress-fill{height:100%;background:var(--accent);width:0%;transition:width 0.1s}
+.upload-toast-stats{display:flex;justify-content:space-between;font-size:10px;color:var(--text2)}
 /* Mobile */
 @media(max-width:768px){
   .c-date,.c-type{display:none}
@@ -535,6 +540,14 @@ ${if(sorted.isEmpty()) "<div style='padding:3rem;text-align:center;color:var(--t
   </div>
 </div>
 
+<!-- Upload Progress Toast -->
+<div class="upload-toast" id="uploadToast">
+  <div class="upload-toast-header"><span>Uploading to LinkShare...</span><span id="uploadPercent">0%</span></div>
+  <div class="upload-toast-file" id="uploadFileName">Preparing files...</div>
+  <div class="upload-progress-track"><div class="upload-progress-fill" id="uploadProgressFill"></div></div>
+  <div class="upload-toast-stats"><span id="uploadTransferred">0 MB</span><span id="uploadSpeed">0 MB/s</span></div>
+</div>
+
 <script>
 var PIN='$sessionPin',CUR='${escJs(rel)}';
 var ctxTarget=null;
@@ -564,9 +577,42 @@ function viewDoc(enc,name){
 }
 function closeModal(){document.getElementById('modalBody').innerHTML='';document.getElementById('modal').classList.remove('open')}
 function uploadFiles(files){
+  if(!files||!files.length)return;
+  var toast=document.getElementById('uploadToast');
+  var fill=document.getElementById('uploadProgressFill');
+  var percent=document.getElementById('uploadPercent');
+  var fileLabel=document.getElementById('uploadFileName');
+  var transferredLabel=document.getElementById('uploadTransferred');
+  var speedLabel=document.getElementById('uploadSpeed');
+  
+  toast.classList.add('active');
+  fileLabel.textContent=files.length==1?files[0].name:files.length+' files';
+
   var fd=new FormData();for(var i=0;i<files.length;i++)fd.append('f'+i,files[i]);
-  var xhr=new XMLHttpRequest();xhr.open('POST','/api/upload?path='+encodeURIComponent(CUR)+'&pin='+PIN);
-  xhr.onload=function(){location.reload()};xhr.send(fd);
+  var xhr=new XMLHttpRequest();
+  var startTime=Date.now();
+  
+  xhr.upload.onprogress=function(e){
+    if(e.lengthComputable){
+      var pct=Math.round((e.loaded/e.total)*100);
+      fill.style.width=pct+'%';
+      percent.textContent=pct+'%';
+      var elapsed=(Date.now()-startTime)/1000;
+      var spd=elapsed>0?(e.loaded/elapsed):(0);
+      transferredLabel.textContent=(e.loaded/1048576).toFixed(1)+' / '+(e.total/1048576).toFixed(1)+' MB';
+      speedLabel.textContent=(spd/1048576).toFixed(1)+' MB/s';
+    }
+  };
+  xhr.onload=function(){
+    toast.classList.remove('active');
+    location.reload();
+  };
+  xhr.onerror=function(){
+    toast.classList.remove('active');
+    alert('Upload failed.');
+  };
+  xhr.open('POST','/api/upload?path='+encodeURIComponent(CUR)+'&pin='+PIN);
+  xhr.send(fd);
 }
 function newFolder(){
   var name=prompt('New folder name:');if(!name)return;

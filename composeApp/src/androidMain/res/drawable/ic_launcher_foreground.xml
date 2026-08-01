@@ -4,67 +4,59 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Group with 16-degree counter-clockwise tilt centered at safe zone (54, 54) -->
     <group
         android:pivotX="54"
         android:pivotY="54"
+        android:scaleX="0.8"
+        android:scaleY="0.8"
         android:rotation="-16">
 
-        <!-- Outer Wireless Signal Wave Arc -->
         <path
             android:fillColor="#00000000"
             android:strokeColor="#121212"
-            android:strokeWidth="3.5"
+            android:strokeWidth="4"
             android:strokeLineCap="round"
             android:pathData="M 76,28 A 15,15 0 0,1 84,44" />
 
-        <!-- Second Signal Wave Arc -->
         <path
             android:fillColor="#00000000"
             android:strokeColor="#121212"
-            android:strokeWidth="3.5"
+            android:strokeWidth="4"
             android:strokeLineCap="round"
             android:pathData="M 82,22 A 23,23 0 0,1 94,46" />
 
-        <!-- Connecting Strut: Main Node to Top-Right Node -->
         <path
             android:fillColor="#00000000"
             android:strokeColor="#121212"
-            android:strokeWidth="5.5"
+            android:strokeWidth="6"
             android:strokeLineCap="round"
             android:pathData="M 38,54 L 68,38" />
 
-        <!-- Connecting Strut: Main Node to Bottom-Right Node -->
         <path
             android:fillColor="#00000000"
             android:strokeColor="#121212"
-            android:strokeWidth="5.5"
+            android:strokeWidth="6"
             android:strokeLineCap="round"
             android:pathData="M 38,54 L 68,70" />
 
-        <!-- Outer Ring for Main Left Node -->
         <path
             android:fillColor="#00000000"
             android:strokeColor="#121212"
-            android:strokeWidth="2.5"
+            android:strokeWidth="3"
             android:pathData="M 38,54 m -13,0 a 13,13 0 1,1 26,0 a 13,13 0 1,1 -26,0" />
 
-        <!-- Main Left Node Solid Circle -->
         <path
             android:fillColor="#121212"
             android:pathData="M 38,54 m -8.5,0 a 8.5,8.5 0 1,1 17,0 a 8.5,8.5 0 1,1 -17,0" />
 
-        <!-- Top-Right Node Solid Circle -->
         <path
             android:fillColor="#121212"
             android:pathData="M 68,38 m -7.5,0 a 7.5,7.5 0 1,1 15,0 a 7.5,7.5 0 1,1 -15,0" />
 
-        <!-- Bottom-Right Node Solid Circle -->
         <path
             android:fillColor="#121212"
             android:pathData="M 68,70 m -7.5,0 a 7.5,7.5 0 1,1 15,0 a 7.5,7.5 0 1,1 -15,0" />
 
-        <!-- Inner Core Accent on Main Node -->
         <path
             android:fillColor="#FFFFFF"
             android:pathData="M 38,54 m -3,0 a 3,3 0 1,1 6,0 a 3,3 0 1,1 -6,0" />

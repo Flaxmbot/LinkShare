@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,18 +28,21 @@ fun SettingsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BackgroundDark)
+            .background(NougatBackground)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-        Text("Configure LinkShare preferences", fontSize = 14.sp, color = TextSecondary)
+        Text(
+            text = "SETTINGS & PREFERENCES",
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            letterSpacing = 1.sp,
+            color = NougatTextSecondary
+        )
 
-        Spacer(Modifier.height(4.dp))
-
-        // Device section
-        SettingsSection("Device") {
+        // Device Info Section
+        SettingsSection("DEVICE IDENTIFICATION") {
             SettingsItem(
                 icon = Icons.Default.Smartphone,
                 title = "Device Name",
@@ -46,118 +50,136 @@ fun SettingsScreen(
             )
         }
 
-        // Server section
-        SettingsSection("Server") {
+        // Protocols & Gateway Section
+        SettingsSection("PROTOCOLS & GATEWAYS") {
             SettingsToggle(
                 icon = Icons.Default.Http,
-                title = "WebDAV Protocol",
-                subtitle = "Enable WebDAV gateway for native OS mounting",
+                title = "WebDAV Gateway",
+                subtitle = "Enable WebDAV network drive mounting on Smart TVs and Kodi",
                 checked = settings.enableWebDav,
                 onCheckedChange = { onSettingsChange(settings.copy(enableWebDav = it)) }
             )
+            HorizontalDivider(color = NougatCardBorder, thickness = 0.5.dp)
             SettingsToggle(
                 icon = Icons.Default.ContentPaste,
-                title = "Clipboard Sync",
-                subtitle = "Sync clipboard text between connected devices",
+                title = "Universal Clipboard Sync",
+                subtitle = "Sync clipboard text seamlessly across connected LAN peers",
                 checked = settings.enableClipboardSync,
                 onCheckedChange = { onSettingsChange(settings.copy(enableClipboardSync = it)) }
             )
+            HorizontalDivider(color = NougatCardBorder, thickness = 0.5.dp)
             SettingsToggle(
                 icon = Icons.Default.Security,
                 title = "Require FTP PIN",
-                subtitle = "Require PIN authentication for FTP connections",
+                subtitle = "Require PIN authentication for incoming FTP clients",
                 checked = settings.ftpRequirePin,
                 onCheckedChange = { onSettingsChange(settings.copy(ftpRequirePin = it)) }
             )
         }
 
-        // Transfer section
-        SettingsSection("Transfer") {
+        // P2P Engine Section
+        SettingsSection("P2P TRANSFER ENGINE") {
             SettingsToggle(
-                icon = Icons.Default.SwapHoriz,
-                title = "Dual-Link (F2)",
-                subtitle = "Use multiple network paths simultaneously",
+                icon = Icons.Default.FlashOn,
+                title = "Dual-Link Channel Bonding (F2)",
+                subtitle = "Aggregate Wi-Fi + Wi-Fi Direct links for maximum transfer speed",
                 checked = settings.enableDualLinkF2,
                 onCheckedChange = { onSettingsChange(settings.copy(enableDualLinkF2 = it)) }
             )
+            HorizontalDivider(color = NougatCardBorder, thickness = 0.5.dp)
             SettingsToggle(
-                icon = Icons.Default.Hub,
-                title = "Swarm Transfer (F3)",
-                subtitle = "BitTorrent-style multi-peer file distribution",
+                icon = Icons.Default.Groups,
+                title = "Swarm Multi-Peer Distribution (F3)",
+                subtitle = "BitTorrent-style parallel piece distribution for 2+ recipients",
                 checked = settings.enableSwarmF3,
                 onCheckedChange = { onSettingsChange(settings.copy(enableSwarmF3 = it)) }
             )
         }
 
-        // About section
-        SettingsSection("About") {
+        // App Information
+        SettingsSection("ABOUT LINKSHARE") {
             SettingsItem(
                 icon = Icons.Default.Info,
                 title = "Version",
-                subtitle = "1.0.0"
+                subtitle = "1.0.0 (Kotlin Multiplatform)"
             )
+            HorizontalDivider(color = NougatCardBorder, thickness = 0.5.dp)
             SettingsItem(
                 icon = Icons.Default.Code,
-                title = "Open Source",
-                subtitle = "github.com/Flaxmbot/LinkShare"
+                title = "Open Source License",
+                subtitle = "Apache License 2.0 · GitHub repository"
             )
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 @Composable
 private fun SettingsSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column {
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = LinkBlue,
-            modifier = Modifier.padding(bottom = 8.dp))
+        Text(
+            text = title,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = NougatTeal,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
         Card(
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = SurfaceDark2),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(Modifier.padding(4.dp), content = content)
-        }
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = NougatSurface),
+            shape = RoundedCornerShape(4.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+            content = content
+        )
     }
 }
 
 @Composable
 private fun SettingsItem(icon: ImageVector, title: String, subtitle: String) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, title, tint = TextSecondary, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 14.sp, color = TextPrimary)
-            Text(subtitle, fontSize = 12.sp, color = TextSecondary)
+        Icon(imageVector = icon, contentDescription = null, tint = NougatTeal, modifier = Modifier.size(20.dp))
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+            Text(text = subtitle, fontSize = 12.sp, color = NougatTextMuted)
         }
     }
 }
 
 @Composable
 private fun SettingsToggle(
-    icon: ImageVector, title: String, subtitle: String,
-    checked: Boolean, onCheckedChange: (Boolean) -> Unit
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, title, tint = TextSecondary, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 14.sp, color = TextPrimary)
-            Text(subtitle, fontSize = 12.sp, color = TextSecondary)
+        Icon(imageVector = icon, contentDescription = null, tint = NougatTeal, modifier = Modifier.size(20.dp))
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+            Text(text = subtitle, fontSize = 11.sp, color = NougatTextMuted, lineHeight = 15.sp)
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedTrackColor = LinkBlue,
-                uncheckedTrackColor = SurfaceDark3
+                checkedThumbColor = Color.White,
+                checkedTrackColor = NougatTeal,
+                uncheckedThumbColor = NougatTextMuted,
+                uncheckedTrackColor = NougatCardBorder
             )
         )
     }
